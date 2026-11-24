@@ -53,6 +53,19 @@ button{font:inherit;cursor:pointer}
 .res-donde .grande{font-size:22px;font-weight:800;line-height:1.2;margin-top:4px}
 details{margin-top:22px}summary{cursor:pointer;font-weight:700;min-height:32px}
 .hidden{display:none!important}
+#buscador{position:fixed;inset:0;background:#0d0b0c;color:#fff;z-index:30;display:none;flex-direction:column}
+#buscador .top{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+#buscador .top .etq{margin:0;font-size:16px}
+#buscador .vista{position:relative;flex:1;overflow:hidden;display:grid;place-items:center}
+#buscador video{width:100%;height:100%;object-fit:cover}
+#bGuia{position:absolute;border:4px solid #ffd54a;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);transition:border-color .15s}
+#bGuia.verde{border-color:#2ecc71}
+#bPista{position:absolute;left:12px;right:12px;bottom:14px;text-align:center;font-size:20px;font-weight:800;padding:10px;border-radius:12px;background:rgba(0,0,0,.6)}
+#buscador .pie{padding:10px 14px calc(12px + env(safe-area-inset-bottom));display:flex;gap:8px}
+#buscador .pie .btn{flex:1}
+#bHall{position:absolute;inset:0;background:#1f9d55;display:none;place-items:center;text-align:center;padding:24px}
+#bHall .grande{font-size:42px;font-weight:800;line-height:1.1}
+.btn.buscar{margin-top:12px;width:100%}
 footer{max-width:680px;margin:0 auto;padding:0 14px 30px;font-size:13px;color:var(--mute)}
 @media (prefers-reduced-motion:reduce){#guia{transition:none}}
 </style>
@@ -96,6 +109,13 @@ footer{max-width:680px;margin:0 auto;padding:0 14px 30px;font-size:13px;color:va
     <p>Si no estás seguro de dónde va un libro que consultaste, déjalo en el carro de devolución del piso: el equipo del CRAI lo ubicará.</p>
   </details>
 </main>
+<div id="buscador" role="dialog" aria-label="Buscar el libro en el estante">
+  <div class="top"><div><div style="font-size:13px;opacity:.85">Buscando</div><div class="etq" id="bEtq"></div></div><button class="btn" id="bCerrar">Cerrar</button></div>
+  <div class="vista"><video id="bVid" playsinline muted></video><div id="bGuia"></div><div id="bPista">Pasa la cámara despacio por las etiquetas del estante</div>
+    <div id="bHall"><div><div class="grande">¡Aquí está!</div><div class="etq" id="bHEtq" style="margin-top:14px"></div><p id="bHTit" style="margin:12px 0 18px"></p><button class="btn" id="bOk" style="background:#fff;color:#1f6b3d;font-weight:700">Listo</button></div></div></div>
+  <div class="pie"><button class="btn" id="bOri">Etiquetas verticales</button></div>
+</div>
+
 <footer>Ubicaciones tomadas del catálogo Koha del CRAI (corte <span id="corte">—</span>). Para saber si un libro está prestado, consulta el catálogo en línea o pregunta en el mostrador.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
@@ -257,7 +277,81 @@ const Motor = (() => {
     const out = []; for (const g of u.grupos.values()) for (const it of g) { const k = claveOrden(it.cn); if (k >= a && k <= b) out.push(it); }
     return out.sort((x, y) => { const kx = claveOrden(x.cn), ky = claveOrden(y.cn); return kx < ky ? -1 : kx > ky ? 1 : ((x.v || 0) - (y.v || 0)) || ((x.e || 0) - (y.e || 0)); });
   }
-  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, get meta() { return meta; }, get total() { return filas.length; } };
+  // ---- lectura por rango: con la lista de libros esperados basta reconocer el autor (Cutter) ----
+  // lineas: [{t: texto, x: posición horizontal 0..1 en la foto}]
+  function enRango(lineas, ubic, desde, hasta, registrados) {
+    const exp = rango(ubic, desde, hasta);
+    const porClave = new Map(); for (const it of exp) { if (!porClave.has(it.clave)) porClave.set(it.clave, []); porClave.get(it.clave).push(it); }
+    const claves = [...porClave.keys()].map(cl => {
+      const k = posCutter(cl); const resto = k >= 0 ? cl.slice(k) : cl;
+      const m = resto.match(/^[A-Z]{1,2}\d{1,4}[A-Z]{0,3}/); const anio = (resto.match(/(1[89]\d\d|20[0-4]\d)$/) || [])[1] || '';
+      return { cl, cut: m ? m[0] : '', clase: k > 0 ? cl.slice(0, k) : '', anio };
+    }).filter(c => c.cut.length >= 3);
+    const hits = [];
+    for (const ln of lineas) {
+      const lec = lecturaDe(ln.t); const raw = lec.plano, pc = canon(raw);
+      let mejores = [];
+      for (const c of claves) {
+        let ok = false;
+        // el autor suele ir pegado al número de clase (330.15E26M): se exige que antes no haya otra letra y después no siga un dígito
+        const cc = canon(c.cut);
+        // se busca en el texto sin espacios y con espacios (así "B565P 1984" no se confunde con un autor más largo)
+        const conEsp = lec.t.replace(/\s+/g, ' ');
+        for (const R0 of [raw, conEsp]) { const P0 = canon(R0);
+          for (let i = P0.indexOf(cc); i >= 0 && ok !== true; i = P0.indexOf(cc, i + 1)) {
+            const ant = R0[i - 1], sig = R0[i + c.cut.length];
+            if (ant && /[A-Z]/.test(ant)) continue; if (sig && /[0-9]/.test(sig)) continue;
+            const q = R0.slice(i, i + c.cut.length) === c.cut ? 'fuerte' : calidad(R0.slice(i, i + c.cut.length), c.cut);
+            if (q === 'fuerte') ok = true; else if (q === 'debil') ok = 'aprox';
+          }
+          if (ok === true) break;
+        }
+        if (!ok && c.cut.length >= 4) { // un carácter distinto o la última letra sin leer (T882A ~ T8822, V339E ~ V339)
+          const base = /[A-Z]$/.test(c.cut) ? c.cut.slice(0, -1) : '';
+          for (let i = 0; i < pc.length && !ok; i++) {
+            if (raw[i] !== c.cut[0] || (i > 0 && /[A-Z]/.test(raw[i - 1]))) continue;
+            const seg = pc.slice(i, i + c.cut.length);
+            if (seg.length === c.cut.length && lev(seg, cc, 1) <= 1 && !/[0-9]/.test(raw[i + c.cut.length] || '')) ok = 'aprox';
+            else if (base.length >= 4 && pc.slice(i, i + base.length) === canon(base) && !/[0-9A-Z]/.test(raw[i + base.length] || '')) ok = 'aprox';
+          }
+        }
+        if (!ok) continue;
+        let puntos = c.cut.length + (ok === 'aprox' ? -2 : 0);
+        if (c.clase && (raw.includes(c.clase) || pc.includes(canon(c.clase)))) puntos += 4;
+        if (c.anio) puntos += lec.anio === c.anio ? 3 : -3; else if (lec.anio) puntos -= 1;
+        mejores.push({ c, puntos, aprox: ok === 'aprox' });
+      }
+      if (!mejores.length) continue;
+      mejores.sort((a, b) => b.puntos - a.puntos);
+      const top = mejores.filter(m => m.puntos === mejores[0].puntos);
+      // si varios autores coinciden igual de bien, la línea es ambigua: se descarta
+      if (new Set(top.map(m => m.c.cl)).size > 1) continue;
+      hits.push({ cl: top[0].c.cl, e: lec.e, v: lec.v, anio: lec.anio, x: ln.x, aprox: top[0].aprox, txt: ln.t });
+    }
+    // agrupa lecturas del mismo libro (misma clave y misma posición en la foto)
+    const fisicos = [];
+    for (const h of hits) {
+      const igual = fisicos.find(f => f.cl === h.cl && Math.abs(f.x - h.x) < 0.025 && (f.e == null || h.e == null || f.e === h.e));
+      if (igual) { if (!igual.anio && h.anio) igual.anio = h.anio; if (igual.e == null && h.e != null) igual.e = h.e; if (igual.v == null && h.v != null) igual.v = h.v; igual.aprox = igual.aprox && h.aprox; }
+      else fisicos.push({ ...h });
+    }
+    // asigna ejemplares: primero los que tienen número legible, luego los deducidos
+    const usados = new Set(registrados), res = [];
+    fisicos.sort((a, b) => (a.e == null) - (b.e == null));
+    for (const f of fisicos) {
+      let g = porClave.get(f.cl).filter(x => !usados.has(x.codigo));
+      if (f.anio && g.some(x => x.anio === f.anio) && g.some(x => x.anio !== f.anio)) g = g.filter(x => x.anio === f.anio);
+      let it = null, nota = '';
+      if (f.v != null && g.some(x => x.v != null)) { const gv = g.filter(x => x.v === f.v); if (f.e != null) it = gv.find(x => (x.e == null ? 1 : x.e) === f.e) || null; else it = gv.find(x => !x.perdido && !x.retirado) || null; if (it && f.e == null && gv.length > 1) nota = 'Ejemplar deducido: la etiqueta no muestra número'; }
+      else if (f.e != null) it = g.find(x => (x.e == null ? 1 : x.e) === f.e) || null;
+      else { it = g.find(x => !x.perdido && !x.retirado) || null; if (it && porClave.get(f.cl).length > 1) nota = 'Ejemplar deducido: la etiqueta no muestra número'; }
+      if (!it) continue;
+      usados.add(it.codigo);
+      res.push({ item: it, nota: [f.aprox ? 'Lectura aproximada: revisar signatura' : '', nota].filter(Boolean).join('; '), seguro: !f.aprox, txt: f.txt });
+    }
+    return { encontrados: res, esperados: exp.length };
+  }
+  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, enRango, get meta() { return meta; }, get total() { return filas.length; } };
 })();
 /*MATCH-END*/
 
@@ -300,12 +394,13 @@ function tarjeta(grupo){
     <div class="etq" aria-label="Signatura">${esc(f.cn)}</div>
     <ul class="ruta">${ubics}<li><b>Zona</b><span>${esc(zona(f.cn)||'—')}</span></li><li><b>Ejemplares</b><span>${total}</span></li></ul>
     ${grupo.some(g=>!estanteria(g.ubic,g.cn))?'<p class="note" style="margin:8px 0 0">Busca en ese piso la zona indicada y sigue el orden de las etiquetas hasta encontrar esta signatura.</p>':''}
+    <button class="btn pri buscar" data-g="${gruposVista.indexOf(grupo)}">Buscarlo en el estante con la cámara</button>
   </article>`;
 }
 function agrupar(lista){const g=new Map();for(const f of lista){const k=f.cnn+'|'+f.anio+'|'+f.tn;if(!g.has(k))g.set(k,[]);g.get(k).push(f)}return [...g.values()]}
 
 // ---------- buscar ----------
-let tBus=null;
+let tBus=null,gruposVista=[];
 function buscar(){
   const q=$('q').value.trim();
   if(!fichas.length)return;
@@ -316,7 +411,7 @@ function buscar(){
     const nq=norm(q);lista.sort((a,b)=>(b.tn.startsWith(nq)-a.tn.startsWith(nq))||a.tn.length-b.tn.length)}
   const grupos=agrupar(lista);
   $('estado').textContent=grupos.length?`${grupos.length>40?'Más de 40':grupos.length} resultado${grupos.length===1?'':'s'}${grupos.length>40?': escribe más palabras para afinar.':'.'}`:'No encontramos ese libro. Prueba con otra palabra del título o revisa la ortografía.';
-  $('res').innerHTML=grupos.slice(0,40).map(tarjeta).join('');
+  gruposVista=grupos.slice(0,40);$('res').innerHTML=gruposVista.map(tarjeta).join('');
 }
 $('q').addEventListener('input',()=>{clearTimeout(tBus);tBus=setTimeout(buscar,200)});
 
@@ -373,7 +468,59 @@ function tab(cual){const b=cual==='B';$('tabB').setAttribute('aria-selected',b);
 $('tabB').onclick=()=>tab('B');$('tabD').onclick=()=>tab('D');
 if(location.hash==='#donde-va')tab('D');
 cargar();
-window.__u={buscar:q=>{$('q').value=q;buscar();return $('estado').textContent},donde:t=>dondeVa(t,'manual')};
+// ---------- buscar el libro en el estante con la cámara ----------
+let bus=null,bStream=null,bWorkers=[],bActivo=false,bOri='h',bUltimo=0;
+const bCanv=[0,1].map(()=>{const c=document.createElement('canvas');return [c,c.getContext('2d',{willReadFrequently:true})]});
+function bRecorte(giro,i){const v=$('bVid'),W=v.videoWidth,H=v.videoHeight;if(!W)return null;const [cv,cx]=bCanv[i];
+  // el marco visible ocupa el centro; se calcula sobre el área que realmente se ve (video recortado para llenar la pantalla)
+  const vw=v.clientWidth,vh=v.clientHeight,esc=Math.max(vw/W,vh/H),ox=(W*esc-vw)/2,oy=(H*esc-vh)/2;
+  const g=$('bGuia').getBoundingClientRect(),r0=v.getBoundingClientRect();
+  const sx=(g.left-r0.left+ox)/esc,sy=(g.top-r0.top+oy)/esc,sw=g.width/esc,sh=g.height/esc;
+  const k=Math.max(1,Math.min(3,900/Math.max(sw,sh)));const dw=Math.round(sw*k),dh=Math.round(sh*k);
+  if(giro){cv.width=dh;cv.height=dw;cx.save();cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2);cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);cx.restore()}else{cv.width=dw;cv.height=dh;cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh)}
+  const im=cx.getImageData(0,0,cv.width,cv.height),d=im.data;let mn=255,mx=0;for(let i=0;i<d.length;i+=4){const gg=.3*d[i]+.59*d[i+1]+.11*d[i+2];d[i]=gg;if(gg<mn)mn=gg;if(gg>mx)mx=gg}
+  const f=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const gg=Math.max(0,Math.min(255,(d[i]-mn)*f));d[i]=d[i+1]=d[i+2]=gg}cx.putImageData(im,0,0);return cv}
+function bMarco(){const g=$('bGuia');if(bOri==='h'){g.style.left='15%';g.style.width='70%';g.style.top='40%';g.style.height='18%'}else{g.style.left='40%';g.style.width='20%';g.style.top='15%';g.style.height='62%'}
+  $('bOri').textContent=bOri==='h'?'Etiquetas verticales':'Etiquetas horizontales'}
+function bPista(txt){$('bPista').textContent=txt}
+function bEvaluar(texto){
+  if(!bus)return;const t=String(texto||'').replace(/\b(?:e|ej|c|v|vol)\s*\.\s*[0-9oil]{1,3}\b/gi,' ');
+  // ¿es el libro buscado? basta reconocer su autor dentro de su propia signatura
+  const er=Motor.enRango([{t,x:.5}],bus.ubic,bus.cn,bus.cn,new Set());
+  const r=Motor.resolver(t,bus.ubic,new Set());
+  const fiable=r.estado==='ok'||r.estado==='ambiguo'||(r.estado==='dudoso'&&r.tipo==='cercana'&&r.dist<=1);
+  const cnLeida=!fiable?null:r.item?r.item.cn:(r.opciones&&r.opciones.length&&new Set(r.opciones.map(x=>x.cn)).size===1?r.opciones[0].cn:null);
+  if((er.encontrados.length&&!er.encontrados[0].nota.includes('aproximada'))||(cnLeida&&normCN(cnLeida)===normCN(bus.cn))){hallado();return}
+  if(cnLeida){$('bGuia').classList.add('verde');setTimeout(()=>$('bGuia').classList.remove('verde'),400);
+    const a=Motor.claveOrden(cnLeida),b=Motor.claveOrden(bus.cn);
+    bPista(a<b?`Leíste ${cnLeida}. Tu libro está MÁS ADELANTE →`:`Leíste ${cnLeida}. Tu libro está MÁS ATRÁS ←`)}
+}
+function hallado(){
+  if(!bActivo)return;bActivo=false;$('bHEtq').textContent=bus.cn;$('bHTit').textContent=bus.titulo||'';$('bHall').style.display='grid';
+  try{navigator.vibrate&&navigator.vibrate([200,100,200,100,400])}catch(e){}
+  try{const a=new (window.AudioContext||window.webkitAudioContext)();[0,.18,.36].forEach(d=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=1500;g.gain.value=.25;o.connect(g);g.connect(a.destination);o.start(a.currentTime+d);o.stop(a.currentTime+d+.12)})}catch(e){}
+}
+async function bBucle(i){
+  if(!bActivo)return;
+  try{const g=bOri==='h'?0:(i===0?1:-1);const c=bRecorte(g,i);if(c){const {data}=await bWorkers[i].recognize(c);if(bActivo&&data.text.trim())bEvaluar(data.text)}}catch(e){}
+  if(bActivo)setTimeout(()=>bBucle(i),10);
+}
+async function abrirBuscador(grupo){
+  const f=grupo[0];bus={cn:f.cn,ubic:f.ubic,titulo:f.titulo};
+  $('bEtq').textContent=f.cn;$('bHall').style.display='none';bPista(`Ve a ${f.ubic}, zona ${zona(f.cn)||'indicada'}, y pasa la cámara despacio por las etiquetas.`);
+  $('buscador').style.display='flex';bMarco();
+  if(!window.isSecureContext||!window.Tesseract){bPista('La cámara no está disponible en este navegador.');return}
+  try{if(!bWorkers.length){bPista('Preparando la cámara… (la primera vez tarda unos segundos)');bWorkers=await Promise.all([0,1].map(async()=>{const w=await Tesseract.createWorker('eng',1);await w.setParameters({tessedit_char_whitelist:'0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/- ',tessedit_pageseg_mode:'6'});return w}))}
+    bStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});
+  }catch(e){bPista('No pudimos abrir la cámara. Permite el acceso a la cámara para esta página.');return}
+  const v=$('bVid');v.srcObject=bStream;await v.play();bActivo=true;bPista(`Pasa la cámara despacio por las etiquetas de ${f.ubic}. Te avisamos cuando lo encuentre.`);[0,1].forEach(i=>bBucle(i));
+}
+function cerrarBuscador(){bActivo=false;if(bStream){bStream.getTracks().forEach(t=>t.stop());bStream=null}$('buscador').style.display='none';bus=null}
+$('res').addEventListener('click',e=>{const b=e.target.closest('button.buscar');if(!b)return;const g=gruposVista[+b.dataset.g];if(g)abrirBuscador(g)});
+$('bCerrar').onclick=cerrarBuscador;$('bOk').onclick=cerrarBuscador;
+$('bOri').onclick=()=>{bOri=bOri==='h'?'v':'h';bMarco()};
+
+window.__u={evaluar:t=>{bEvaluar(t);return $('bHall').style.display==='grid'?'HALLADO':$('bPista').textContent},abrirSinCamara:i=>{const g=gruposVista[i];const f=g[0];bus={cn:f.cn,ubic:f.ubic,titulo:f.titulo};bActivo=true;$('buscador').style.display='flex';bMarco();return f.cn},buscar:q=>{$('q').value=q;buscar();return $('estado').textContent},donde:t=>dondeVa(t,'manual')};
 }
 </script>
 </body>
