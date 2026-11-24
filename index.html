@@ -27,6 +27,16 @@ label{font-size:13px;display:block;margin-bottom:4px;color:var(--mute)}
 input[type=text],select{width:100%;font-size:16px;padding:10px 12px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 input:focus,button:focus-visible,select:focus{outline:3px solid var(--acc2);outline-offset:1px}
 .grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.prog{margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.prog .barra{height:12px;border-radius:99px;background:var(--soft);overflow:hidden;margin:6px 0}
+.prog .barra i{display:block;height:100%;background:var(--ok);width:0;transition:width .3s}
+.prog .cifras{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:14px}
+.prog .cifras b{font-size:18px}
+.falta li{padding:5px 2px}
+.falta code{font:600 14px ui-monospace,Menlo,monospace}
+.sw{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:6px}
+.sw input{width:22px;height:22px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
 .row>*{flex:1 1 0}
 button{font:inherit;font-size:15px;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
@@ -106,14 +116,19 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
   </section>
 
   <section class="box" style="margin-top:10px" aria-labelledby="t1">
-    <h2 id="t1" style="margin-top:0">1. Entrepaño</h2>
+    <h2 id="t1" style="margin-top:0">1. Estantería y rango</h2>
     <div class="grid">
       <div><label for="ubic">Ubicación en Koha</label><select id="ubic"></select></div>
-      <div><label for="est">Estante</label><input type="text" id="est" inputmode="numeric" placeholder="4" autocomplete="off"></div>
-      <div><label for="ent">Entrepaño</label><input type="text" id="ent" inputmode="numeric" placeholder="3" autocomplete="off"></div>
+      <div><label for="est">Estantería</label><input type="text" id="est" inputmode="numeric" placeholder="1" autocomplete="off"></div>
+      <div><label for="ent">Entrepaño (opcional)</label><input type="text" id="ent" inputmode="numeric" placeholder="todos" autocomplete="off"></div>
     </div>
+    <div class="grid2">
+      <div><label for="desde">Desde signatura</label><input type="text" id="desde" placeholder="330.122 R347t" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div><label for="hasta">Hasta signatura</label><input type="text" id="hasta" placeholder="330.15 H669s" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    </div>
+    <p class="note" style="margin:4px 0 0">Si dejas el rango vacío, se arma solo con la primera y la última signatura que leas.</p>
     <div class="row" style="margin-top:8px">
-      <button class="pri" id="btnFijar">Usar este entrepaño</button>
+      <button class="pri" id="btnFijar">Usar esta estantería</button>
       <div><label for="lista">O retomar uno guardado</label><select id="lista"></select></div>
     </div>
     <div class="tramoname" id="tramoname" aria-live="polite"></div>
@@ -132,7 +147,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <video id="vid" playsinline muted class="hidden"></video>
     <div id="reader"></div>
     <div id="guia" class="h"></div>
-    <div id="camoff">Descarga el maestro y elige el entrepaño.<br>Luego pulsa <b>Iniciar cámara</b>.</div>
+    <div id="camoff">Descarga el maestro y elige la estantería.<br>Luego pulsa <b>Iniciar cámara</b>.</div>
     <div id="ocrtxt"></div>
     <div id="flash"></div>
   </div>
@@ -143,6 +158,15 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 
   <div class="last"><div class="sig" id="lSig">—</div><div class="cnt"><b id="num">0</b><span>en este entrepaño</span></div><div class="cod" id="lCod"></div><div class="tit" id="lTit"></div></div>
   <div id="msg" aria-live="assertive"></div>
+  <label class="sw"><input type="checkbox" id="auto" checked> Registro automático (sin confirmar uno por uno; los casos dudosos quedan marcados para revisar)</label>
+
+  <section class="prog" aria-label="Avance del rango">
+    <div class="cifras"><span>Rango: <b id="pRango">—</b></span></div>
+    <div class="barra"><i id="pBarra"></i></div>
+    <div class="cifras"><span>Leídos <b id="pLeidos">0</b> de <b id="pEsp">0</b> esperados</span><span>Faltan <b id="pFaltan">0</b></span><span>Para revisar <b id="pRev">0</b></span></div>
+    <div class="row" style="margin-top:8px"><button class="ghost" id="btnRangoLeido">Fijar rango con lo leído</button><button class="ghost" id="btnVerFaltan">Ver faltantes</button></div>
+    <ol class="falta hidden" id="faltan"></ol>
+  </section>
 
   <div id="decide" role="region" aria-label="Decisión pendiente">
     <h3 id="dMot"></h3>
@@ -164,9 +188,9 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <summary>Cómo usarla sin errores</summary>
     <ol style="border:0;padding-left:18px;list-style:decimal">
       <li style="display:list-item;border:0">Una sola vez por dispositivo: escribe la clave del equipo y pulsa <b>Descargar maestro</b>. Queda guardado y se actualiza solo cuando haya uno nuevo.</li>
-      <li style="display:list-item;border:0">Elige la ubicación, escribe estante y entrepaño, y pulsa <b>Usar este entrepaño</b>.</li>
-      <li style="display:list-item;border:0">Modo <b>Signatura</b>: encierra UNA etiqueta en el marco amarillo, quieta y con luz. Usa “Etiqueta vertical” para lomos delgados. El libro se registra solo cuando la lectura coincide dos veces con el maestro: pitido agudo y destello verde.</li>
-      <li style="display:list-item;border:0">Si la etiqueta no tiene ejemplar o se parece a otra, la página se detiene y te muestra las opciones de Koha. Elige la correcta o pide volver a leer. Nunca adivina.</li>
+      <li style="display:list-item;border:0">Elige la ubicación, escribe la estantería (y el entrepaño si quieres) y el rango de signaturas que va en ella. Pulsa <b>Usar este entrepaño</b>: verás cuántos ítems deben leerse.</li>
+      <li style="display:list-item;border:0">Modo <b>Signatura</b>: encierra UNA etiqueta en el marco amarillo, quieta y con luz. Usa “Etiqueta vertical” para lomos delgados. Con el registro automático, cada etiqueta que coincide dos veces con el maestro se registra sola: pitido agudo y destello verde. Las deducciones y lecturas aproximadas quedan marcadas en “Para revisar”.</li>
+      <li style="display:list-item;border:0">Si apagas el registro automático, la página se detiene en cada caso dudoso y te deja elegir.</li>
       <li style="display:list-item;border:0">Al terminar, pulsa <b>Enviar a Claude</b> y pega el texto en el chat. Lleva la fecha 24/11/2026, el entrepaño, cada código con su signatura y los avisos.</li>
     </ol>
     <p class="note">Las listas se guardan solo en este celular. Descarga el respaldo al final de cada jornada.</p>
@@ -279,8 +303,9 @@ const Motor = (() => {
       }
       cercanas.sort((a, b) => a[1] - b[1]); const d0 = cercanas.length ? cercanas[0][1] : 9;
       cercanas = cercanas.filter(x => x[1] === d0).slice(0, 6).map(x => x[0]);
+      return { exactas: ex, cercanas, dist: d0 };
     }
-    return { exactas: ex, cercanas };
+    return { exactas: ex, cercanas, dist: 0 };
   }
   function filtrar(g, lec) {
     if (lec.anio && g.some(x => x.anio === lec.anio) && g.some(x => x.anio !== lec.anio)) g = g.filter(x => x.anio === lec.anio);
@@ -299,24 +324,31 @@ const Motor = (() => {
     const lec = lecturaDe(texto);
     const u = porUbic.get(ubic);
     if (!u) return { estado: 'sin-maestro', lec };
-    const { exactas, cercanas } = clavesEn(lec, ubic);
+    const { exactas, cercanas, dist } = clavesEn(lec, ubic);
     if (!exactas.length) {
       const otras = enOtras(lec, ubic);
-      if (otras.length) return { estado: 'dudoso', motivo: `En Koha esta signatura no figura en ${ubic}, sino en: ${[...new Set(otras.map(x => x.ubic))].join(', ')}`, lec, opciones: otras };
+      if (otras.length) return { estado: 'dudoso', tipo: 'otra-ubic', motivo: `En Koha esta signatura no figura en ${ubic}, sino en: ${[...new Set(otras.map(x => x.ubic))].join(', ')}`, lec, opciones: otras };
       if (!cercanas.length) return { estado: 'nada', lec };
       const opciones = filtrar(cercanas.flatMap(cl => u.grupos.get(cl)), lec);
-      return { estado: 'dudoso', motivo: 'Signatura parecida, no idéntica', lec, opciones };
+      return { estado: 'dudoso', tipo: 'cercana', dist, claves: cercanas, motivo: 'Signatura parecida, no idéntica', lec, opciones };
     }
-    if (exactas.length > 1) return { estado: 'dudoso', motivo: 'Se leyeron varias signaturas', lec, opciones: exactas.flatMap(cl => u.grupos.get(cl)) };
+    if (exactas.length > 1) return { estado: 'dudoso', tipo: 'varias', motivo: 'Se leyeron varias signaturas', lec, opciones: exactas.flatMap(cl => u.grupos.get(cl)) };
     const g0 = u.grupos.get(exactas[0]);
-    if (lec.e != null && !g0.some(x => (x.e == null ? 1 : x.e) === lec.e)) { const otras = enOtras(lec, ubic).filter(x => (x.e == null ? 1 : x.e) === lec.e); return { estado: 'dudoso', motivo: otras.length ? `El ejemplar e.${lec.e} figura en Koha en ${otras.map(x => x.ubic + (x.perdido ? ' (perdido)' : '')).join(', ')}` : `Koha no tiene el ejemplar e.${lec.e} de esta signatura en ${ubic}`, lec, opciones: otras.length ? otras : g0 }; }
-    if (lec.v != null && g0.some(x => x.v != null) && !g0.some(x => x.v === lec.v)) return { estado: 'dudoso', motivo: `Koha no tiene el volumen v.${lec.v} de esta signatura en ${ubic}`, lec, opciones: g0 };
+    if (lec.e != null && !g0.some(x => (x.e == null ? 1 : x.e) === lec.e)) { const otras = enOtras(lec, ubic).filter(x => (x.e == null ? 1 : x.e) === lec.e); return { estado: 'dudoso', tipo: otras.length ? 'otra-ubic' : 'sin-ejemplar', motivo: otras.length ? `El ejemplar e.${lec.e} figura en Koha en ${otras.map(x => x.ubic + (x.perdido ? ' (perdido)' : '')).join(', ')}` : `Koha no tiene el ejemplar e.${lec.e} de esta signatura en ${ubic}`, lec, opciones: otras.length ? otras : g0 }; }
+    if (lec.v != null && g0.some(x => x.v != null) && !g0.some(x => x.v === lec.v)) return { estado: 'dudoso', tipo: 'sin-ejemplar', motivo: `Koha no tiene el volumen v.${lec.v} de esta signatura en ${ubic}`, lec, opciones: g0 };
     const g = filtrar(g0.slice(), lec);
     if (g.length === 1) return { estado: 'ok', item: g[0], lec };
     const libres = g.filter(x => !registrados.has(x.codigo));
     return { estado: 'ambiguo', motivo: lec.e == null ? 'La etiqueta no muestra ejemplar y hay varias copias' : 'Hay varias copias con los mismos datos', lec, opciones: g, libres };
   }
-  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, get meta() { return meta; }, get total() { return filas.length; } };
+  // ítems de una ubicación entre dos signaturas (incluidas), en orden de estantería
+  function rango(ubic, desde, hasta) {
+    const u = porUbic.get(ubic); if (!u) return [];
+    const a = claveOrden(desde), b = claveOrden(hasta) + '\uffff';
+    const out = []; for (const g of u.grupos.values()) for (const it of g) { const k = claveOrden(it.cn); if (k >= a && k <= b) out.push(it); }
+    return out.sort((x, y) => { const kx = claveOrden(x.cn), ky = claveOrden(y.cn); return kx < ky ? -1 : kx > ky ? 1 : ((x.v || 0) - (y.v || 0)) || ((x.e || 0) - (y.e || 0)); });
+  }
+  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, get meta() { return meta; }, get total() { return filas.length; } };
 })();
 /*MATCH-END*/
 
@@ -335,7 +367,7 @@ try{const r=localStorage.getItem(KEY);if(r)st=JSON.parse(r);if(!st||!st.tramos)s
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){almacen=false;aviso('Este navegador no está guardando los datos. No cierres la página y descarga el respaldo con frecuencia.')}}
 function aviso(t){const a=$('aviso');a.textContent=t;a.style.display=t?'block':'none'}
 const T=()=>st.tramos[st.cur]||null;
-const nombreT=t=>t?`${t.ubic} · Estante ${t.est} · Entrepaño ${t.ent}`:'';
+const nombreT=t=>t?`${t.ubic} · Estantería ${t.est}${t.ent?' · Entrepaño '+t.ent:''}`:'';
 const sigDe=it=>(it.cn||'(sin signatura)')+(it.copia?' '+it.copia:'');
 function dondeEsta(cod){for(const [id,t] of Object.entries(st.tramos))if(t.items.some(x=>x.codigo===cod))return id;return null}
 
@@ -415,7 +447,25 @@ function render(){
   const ids=Object.keys(st.tramos).sort((a,b)=>st.tramos[a].creado<st.tramos[b].creado?1:-1);
   $('lista').innerHTML='<option value="">— elegir —</option>'+ids.map(id=>{const x=st.tramos[id];return `<option value="${esc(id)}"${id===st.cur?' selected':''}>${esc(nombreT(x))} (${x.items.length})${x.enviado?' ✓':''}</option>`}).join('');
   if(t){if([...$('ubic').options].some(o=>o.value===t.ubic))$('ubic').value=t.ubic;$('est').value=t.est;$('ent').value=t.ent}
-  const on=!!t;['btnUndo','btnSend','btnAdd','manual','btnClear','btnDel'].forEach(i=>$(i).disabled=!on);
+  const on=!!t;['btnUndo','btnSend','btnAdd','manual','btnClear','btnDel','btnRangoLeido','btnVerFaltan'].forEach(i=>$(i).disabled=!on);
+  if(t){$('desde').value=t.desde||'';$('hasta').value=t.hasta||''}
+  pintarAvance();
+}
+function rangoDe(t){
+  if(!t)return null;
+  let d=t.desde,h=t.hasta;
+  if((!d||!h)&&t.items.length){const cns=t.items.filter(x=>x.cn&&!(x.flags||[]).some(f=>f.startsWith('Fuera del rango'))).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);if(cns.length){d=d||cns[0];h=h||cns[cns.length-1]}}
+  return d&&h?{d,h,auto:!(t.desde&&t.hasta)}:null;
+}
+function esperados(t){const r=rangoDe(t);if(!r||!hayMaestro)return [];return Motor.rango(t.ubic,r.d,r.h).filter(x=>!x.perdido&&!x.retirado)}
+function pintarAvance(){
+  const t=T();const r=rangoDe(t);const esp=t?esperados(t):[];const leidos=new Set(t?t.items.map(x=>x.codigo):[]);
+  const falt=esp.filter(x=>!leidos.has(x.codigo));const dentro=esp.length-falt.length;
+  $('pRango').textContent=r?`${r.d} – ${r.h}${r.auto?' (según lo leído)':''}`:'—';
+  $('pLeidos').textContent=dentro;$('pEsp').textContent=esp.length;$('pFaltan').textContent=falt.length;
+  $('pRev').textContent=t?t.items.filter(x=>(x.flags||[]).length).length:0;
+  $('pBarra').style.width=esp.length?Math.round(100*dentro/esp.length)+'%':'0';
+  $('faltan').innerHTML=falt.slice(0,300).map(x=>`<li><span class="n"></span><div class="d"><code>${esc(sigDe(x))}</code><small>${esc(x.codigo)} · ${esc(x.titulo||'')}</small></div></li>`).join('')||'<li class="note" style="border:0">No falta ningún ítem del rango.</li>';
 }
 function msg(t,cls){const m=$('msg');m.textContent=t;m.className=cls||''}
 let actx=null;
@@ -438,6 +488,7 @@ function registrar(it,extra){
   if(it.ubic!==t.ubic)flags.push(`En Koha figura en: ${it.ubic}`);
   if(it.perdido)flags.push('En Koha figura como perdido');
   if(it.retirado)flags.push('En Koha figura como retirado');
+  if(t.desde&&t.hasta&&it.cn){const k=Motor.claveOrden(it.cn);if(k<Motor.claveOrden(t.desde)||k>Motor.claveOrden(t.hasta)+'\uffff')flags.push('Fuera del rango de esta estantería')}
   const prev=t.items[t.items.length-1];
   if(prev&&Motor.claveOrden(prev.cn)>Motor.claveOrden(it.cn))flags.push('Posible desorden: va antes que el anterior');
   const otro=dondeEsta(it.codigo);
@@ -504,25 +555,52 @@ async function cicloOCR(){
       const r=Motor.resolver(data.text,T().ubic,new Set(T().items.map(x=>x.codigo)));
       $('ocrtxt').textContent=data.text.trim().slice(0,120)||'…';
       if(r.estado!=='nada'){mejor=r;break}}
-    if(mejor)procesar(mejor);else ultimaClave='';
+    if(mejor){vacios=0;procesar(mejor)}else{ultimaClave='';if(++vacios>=2)bloqueoSig=''}   // se libera tras dos lecturas sin etiqueta (la cámara pasó a otro libro)
   }catch(e){msg('Error leyendo: '+(e.message||e),'bad')}
   ocupado=false;setTimeout(cicloOCR,120);
 }
 function claveRes(r){return r.estado+'|'+(r.item?r.item.codigo:(r.opciones||[]).map(x=>x.codigo).join(','))}
+// identifica la etiqueta leída (signatura + ejemplar + volumen), no el ítem elegido
+function sigKey(r){return [...new Set((r.item?[r.item]:(r.opciones||[])).map(x=>x.cn))].sort().join(',')+'|'+(r.lec?r.lec.e:'')+'|'+(r.lec?r.lec.v:'')}
+let bloqueoSig='',vacios=0;
 function procesar(r){
-  const k=claveRes(r),now=Date.now();
-  if(r.estado==='ok'&&r.item.codigo===ultimoReg&&now-ultimaVez<4000){ultimaVez=now;return}
+  const k=claveRes(r),now=Date.now(),sk=sigKey(r);
+  if(sk===bloqueoSig)return;                         // misma etiqueta que acabamos de registrar: esperar a que la cámara pase a otro libro
   if(k!==ultimaClave){ultimaClave=k;return}           // exige dos lecturas iguales seguidas
-  ultimaClave='';ultimaVez=now;
-  if(r.estado==='ok'){if(T().items.some(x=>x.codigo===r.item.codigo)){if(r.item.codigo!==ultimoReg){msg(`Ya estaba: ${sigDe(r.item)}`,'dup')}return}registrar(r.item,[])}
-  else mostrarDecision(r);
+  ultimaClave='';ultimaVez=now;bloqueoSig=sk;
+  if(r.estado==='ok'){if(T().items.some(x=>x.codigo===r.item.codigo)){if(r.item.codigo!==ultimoReg){msg(`Ya estaba: ${sigDe(r.item)}`,'dup')}return}registrar(r.item,[]);return}
+  if(!$('auto').checked){mostrarDecision(r);return}
+  automatico(r);
+}
+// Registro automático: decide sin detenerse y deja marcado lo que conviene revisar
+function automatico(r){
+  const reg=new Set(T().items.map(x=>x.codigo));
+  const libres=(r.libres||r.opciones||[]).filter(x=>!reg.has(x.codigo));
+  if(r.estado==='ambiguo'){
+    if(libres.length){registrar(libres[0],['Ejemplar deducido: la etiqueta no muestra número']);}
+    else msg('Todas las copias de esa signatura ya están registradas.','dup');
+    return;
+  }
+  if(r.tipo==='varias'){msg('Hay varias etiquetas en el marco: encuadra una sola.','dup');return}
+  if(r.tipo==='sin-ejemplar'){msg(`${r.motivo}. No se registró.`,'bad');sonido(false);return}
+  if(r.tipo==='cercana'){
+    const claves=new Set((r.opciones||[]).map(x=>x.cn));
+    if(r.dist>1||claves.size!==1){return}               // lectura poco clara: sigue leyendo
+    if(!libres.length){return}
+    registrar(libres[0],['Lectura aproximada: revisar signatura'].concat(libres.length>1?['Ejemplar deducido: la etiqueta no muestra número']:[]));return;
+  }
+  if(r.tipo==='otra-ubic'){
+    if(!libres.length){msg('Ese ejemplar ya está registrado.','dup');return}
+    registrar(libres[0],libres.length>1?['Ejemplar deducido: la etiqueta no muestra número']:[]);return;
+  }
+  mostrarDecision(r);
 }
 
 // ---------- cámara ----------
 async function camara(){
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){}
   if(activo){await apagar();msg('Cámara detenida.','');return}
-  if(!T()){msg('Primero elige el entrepaño y pulsa “Usar este entrepaño”.','bad');sonido(false);return}
+  if(!T()){msg('Primero elige la estantería y pulsa “Usar esta estantería”.','bad');sonido(false);return}
   if(!window.isSecureContext){msg('La cámara solo funciona si la página se abre con https.','bad');return}
   if(modo==='sig'){
     if(!hayMaestro){msg('Para leer signaturas primero descarga el maestro con la clave del equipo.','bad');sonido(false);return}
@@ -575,22 +653,30 @@ function setOri(o){ori=o;$('oH').setAttribute('aria-pressed',o==='h');$('oV').se
 function fijar(){
   const u=$('ubic').value,e=$('est').value.trim(),n=$('ent').value.trim();
   if(!u){msg('Carga el maestro y elige la ubicación.','bad');sonido(false);return}
-  if(!e||!n){msg('Escribe estante y entrepaño.','bad');sonido(false);return}
+  if(!e){msg('Escribe el número de estantería.','bad');sonido(false);return}
   const id=[u,e,n].map(x=>x.trim().toLowerCase()).join('|');
   if(!st.tramos[id])st.tramos[id]={ubic:u,est:e,ent:n,items:[],enviado:null,creado:new Date().toISOString()};
+  const d=$('desde').value.trim(),h=$('hasta').value.trim();
+  if(d&&h&&Motor.claveOrden(d)>Motor.claveOrden(h)){msg('El rango está invertido: “Desde” debe ir antes que “Hasta”.','bad');sonido(false);return}
+  st.tramos[id].desde=d;st.tramos[id].hasta=h;
   st.cur=id;save();render();ultimaClave='';ultimoReg='';
+  if(d&&h&&hayMaestro)msg(`${nombreT(st.tramos[id])}: ${esperados(st.tramos[id]).length} ítems esperados entre ${d} y ${h}.`,'ok');else
   msg((st.tramos[id].items.length?'Retomaste: ':'Entrepaño listo: ')+nombreT(st.tramos[id]),'ok');
 }
 function textoClaude(t){
   const its=t.items,ord=its.filter(x=>x.cn).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);
-  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango leído: ${ord[0]||'?'} – ${ord[ord.length-1]||'?'}`,`Cantidad: ${its.length}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
-    ...its.map(x=>`${x.codigo} | ${sigDe(x)}${x.flags&&x.flags.length?' | '+x.flags.join('; '):''}`)].join('\n');
+  const r=rangoDe(t),esp=esperados(t),leidos=new Set(its.map(x=>x.codigo)),falt=esp.filter(x=>!leidos.has(x.codigo));
+  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango: ${r?r.d+' – '+r.h+(r.auto?' (según lo leído)':''):'sin rango'}`,`Leídos: ${its.length} · Esperados en el rango: ${esp.length} · Faltan: ${falt.length}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
+    ...its.map(x=>`${x.codigo} | ${sigDe(x)}${x.flags&&x.flags.length?' | '+x.flags.join('; '):''}`),
+    ...(falt.length?[`Faltantes del rango (código | signatura):`,...falt.map(x=>`${x.codigo} | ${sigDe(x)}`)]:[])].join('\n');
 }
 function archivo(base){return (`inventario_${FECHA_INV}_${base}`).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-')+'.txt'}
 function descargar(n,c){const b=new Blob([c],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
 async function copiar(txt){try{await navigator.clipboard.writeText(txt);return true}catch(e){const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();return ok}}
 
 $('btnFijar').onclick=fijar;
+$('btnRangoLeido').onclick=()=>{const t=T();if(!t)return;const cns=t.items.filter(x=>x.cn).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);if(!cns.length){msg('Aún no hay signaturas leídas.','dup');return}t.desde=cns[0];t.hasta=cns[cns.length-1];save();render();msg(`Rango fijado: ${t.desde} – ${t.hasta}.`,'ok')};
+$('btnVerFaltan').onclick=()=>{const f=$('faltan');f.classList.toggle('hidden');$('btnVerFaltan').textContent=f.classList.contains('hidden')?'Ver faltantes':'Ocultar faltantes'};
 $('lista').onchange=()=>{const v=$('lista').value;if(v&&st.tramos[v]){st.cur=v;save();render();ultimaClave='';ultimoReg='';msg('Retomaste: '+nombreT(st.tramos[v]),'ok')}};
 $('btnCam').onclick=camara;$('btnTorch').onclick=linterna;
 $('mSig').onclick=()=>setModo('sig');$('mCod').onclick=()=>setModo('cod');
@@ -616,7 +702,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 if(!window.isSecureContext)aviso('Abre esta página desde su enlace https (GitHub Pages). Así la cámara funciona.');
 render();iniciarMaestro();
 // para pruebas automáticas
-window.__inv={procesarTexto:(txt)=>{const r=Motor.resolver(txt,T().ubic,new Set(T().items.map(x=>x.codigo)));ultimaClave=claveRes(r);procesar(r);return r.estado}};
+window.__inv={vacio:()=>{ultimaClave='';bloqueoSig=''},procesarTexto:(txt)=>{const r=Motor.resolver(txt,T().ubic,new Set(T().items.map(x=>x.codigo)));ultimaClave=claveRes(r);procesar(r);return r.estado}};
 }
 </script>
 </body>
