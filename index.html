@@ -334,7 +334,8 @@ const Motor = (() => {
     // 2) idéntica salvo confusiones típicas del OCR
     if (!ex.length) ex = masLargas(cand.filter(cl => pc.includes(canon(cl))));
     // 3) el OCR no leyó la letra de colección (C863..., R030...): comparar sin el prefijo
-    const sinPref = cl => cl.replace(/^[A-Z]+(?=\d)/, '');
+    // solo para signaturas Dewey con decimal y autor (p. ej. C863.64G216C), nunca para códigos cortos como AU0014
+    const sinPref = cl => { const r = cl.replace(/^[A-Z]{1,2}(?=\d{3}\.)/, ''); return (r !== cl && r.length >= 8 && /\d{3}\.\d+[A-Z]/.test(r)) ? r : cl; };
     if (!ex.length) ex = masLargas(cand.filter(cl => sinPref(cl) !== cl && (plano.includes(sinPref(cl)) || pc.includes(canon(sinPref(cl))))));
     let cercanas = [];
     if (!ex.length) {
@@ -496,7 +497,7 @@ function render(){
 function rangoDe(t){
   if(!t)return null;
   let d=t.desde,h=t.hasta;
-  if((!d||!h)&&t.items.length){const cns=t.items.filter(x=>x.cn&&!(x.flags||[]).some(f=>f.startsWith('Fuera del rango'))).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);if(cns.length){d=d||cns[0];h=h||cns[cns.length-1]}}
+  if((!d||!h)&&t.items.length){const cns=t.items.filter(x=>x.cn&&!(x.flags||[]).some(f=>/^(Fuera del rango|En Koha figura|Lectura aproximada)/.test(f))).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);if(cns.length){d=d||cns[0];h=h||cns[cns.length-1]}}
   return d&&h?{d,h,auto:!(t.desde&&t.hasta)}:null;
 }
 function esperados(t){const r=rangoDe(t);if(!r||!hayMaestro)return [];return Motor.rango(t.ubic,r.d,r.h).filter(x=>!x.perdido&&!x.retirado)}
@@ -543,7 +544,6 @@ function registrar(it,extra){
   if(it.retirado)flags.push('En Koha figura como retirado');
   if(t.desde&&t.hasta&&it.cn){const k=Motor.claveOrden(it.cn);if(k<Motor.claveOrden(t.desde)||k>Motor.claveOrden(t.hasta)+'\uffff')flags.push('Fuera del rango de esta estantería')}
   const prev=t.items[t.items.length-1];
-  if(prev&&Motor.claveOrden(prev.cn)>Motor.claveOrden(it.cn))flags.push('Posible desorden: va antes que el anterior');
   const otro=dondeEsta(it.codigo);
   const hacer=()=>{
     if(otro&&otro!==st.cur){const o=st.tramos[otro];o.items=o.items.filter(x=>x.codigo!==it.codigo);o.enviado=null}
@@ -634,9 +634,12 @@ function procesar(r){
 // Registro automático: decide sin detenerse y deja marcado lo que conviene revisar
 function automatico(r){
   const reg=new Set(T().items.map(x=>x.codigo));
-  const libres=(r.libres||r.opciones||[]).filter(x=>!reg.has(x.codigo));
+  // preferir copias de esta ubicación y que no estén perdidas ni retiradas
+  const libres=(r.libres||r.opciones||[]).filter(x=>!reg.has(x.codigo)).sort((a,b)=>((a.ubic!==T().ubic)-(b.ubic!==T().ubic))||((a.perdido||a.retirado)-(b.perdido||b.retirado))||((a.e||0)-(b.e||0)));
+  const deducible=x=>x&&x.ubic===T().ubic&&!x.perdido&&!x.retirado;
   if(r.estado==='ambiguo'){
-    if(libres.length){registrar(libres[0],['Ejemplar deducido: la etiqueta no muestra número']);}
+    if(deducible(libres[0])){registrar(libres[0],['Ejemplar deducido: la etiqueta no muestra número']);}
+    else if(libres.length)msg(`${libres[0].cn}: las copias que faltan figuran perdidas o en otra ubicación. Escribe el código a mano si es esa.`,'dup');
     else msg('Todas las copias de esa signatura ya están registradas.','dup');
     return;
   }
@@ -645,12 +648,13 @@ function automatico(r){
   if(r.tipo==='cercana'){
     const claves=new Set((r.opciones||[]).map(x=>x.cn));
     if(r.dist>1||claves.size!==1){return}               // lectura poco clara: sigue leyendo
-    if(!libres.length){return}
+    if(!deducible(libres[0])){return}
     registrar(libres[0],['Lectura aproximada: revisar signatura'].concat(libres.length>1?['Ejemplar deducido: la etiqueta no muestra número']:[]));return;
   }
   if(r.tipo==='otra-ubic'){
     if(!libres.length){msg('Ese ejemplar ya está registrado.','dup');return}
-    registrar(libres[0],libres.length>1?['Ejemplar deducido: la etiqueta no muestra número']:[]);return;
+    if(libres.length>1||libres[0].perdido||libres[0].retirado){msg(`${libres[0].cn}: Koha lo tiene en ${libres[0].ubic}${libres[0].perdido?' (perdido)':''}. No se registró solo; escríbelo a mano si de verdad está aquí.`,'dup');return}
+    registrar(libres[0],[]);return;
   }
   mostrarDecision(r);
 }
@@ -779,7 +783,7 @@ function textoClaude(t){
   const r=rangoDe(t),esp=esperados(t),leidos=new Set(its.map(x=>x.codigo)),falt=esp.filter(x=>!leidos.has(x.codigo));
   return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango: ${r?r.d+' – '+r.h+(r.auto?' (según lo leído)':''):'sin rango'}`,`Leídos: ${its.length} · Esperados en el rango: ${esp.length} · Faltan: ${falt.length} ejemplares · Títulos sin leer: ${titulosSinLeer(esp,its)}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
     ...its.map(x=>`${x.codigo} | ${sigDe(x)}${x.flags&&x.flags.length?' | '+x.flags.join('; '):''}`),
-    ...(falt.length?[`Faltantes del rango (código | signatura | título):`,...falt.map(x=>`${x.codigo} | ${sigDe(x)} | ${x.titulo||''}`)]:[])].join('\n');
+    ...(falt.length>400?[`Faltantes del rango: ${falt.length}. Son demasiados para listarlos; revisa que el rango corresponda a esta estantería.`]:falt.length?[`Faltantes del rango (código | signatura | título):`,...falt.map(x=>`${x.codigo} | ${sigDe(x)} | ${x.titulo||''}`)]:[])].join('\n');
 }
 function archivo(base){return (`inventario_${FECHA_INV}_${base}`).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-')+'.txt'}
 function descargar(n,c){const b=new Blob([c],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
