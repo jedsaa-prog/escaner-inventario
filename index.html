@@ -64,8 +64,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #guia{position:absolute;border:4px solid #ffd54a;transition:border-color .15s;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none;display:none}
 #guia.verde{border-color:#2ecc71!important;box-shadow:0 0 0 9999px rgba(0,0,0,.35),0 0 18px #2ecc71}
 #guia.ambar{border-color:#ff9800!important}
-#guia.h,#guia.verde.h{left:6%;width:88%;top:34%;height:32%}
-#guia.v,#guia.verde.v{left:34%;width:32%;top:6%;height:88%}
+#guia.zz,#guia.verde.zz{left:6%;width:88%;top:34%;height:32%}
+#guia.zv,#guia.verde.zv{left:34%;width:32%;top:6%;height:88%}
 #camoff{color:#ddd;text-align:center;padding:40px 20px;font-size:15px}
 #ocrtxt{position:absolute;left:8px;right:8px;bottom:8px;color:#fff;background:rgba(0,0,0,.55);font:13px/1.3 ui-monospace,Menlo,monospace;padding:4px 8px;border-radius:6px;display:none;white-space:pre-wrap;max-height:4.2em;overflow:hidden}
 #flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s}
@@ -99,6 +99,14 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 #dlg p{margin:0 0 14px;white-space:pre-line}
 #aviso{display:none;background:#fde9c8;color:#5c3800;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px}
 .hidden{display:none!important}
+#bloque{display:none;border:2px solid var(--acc2);border-radius:12px;padding:12px;margin-top:10px}
+#bloque h3{margin:0 0 6px;font-size:16px}
+#bloque img{width:100%;border-radius:8px;margin:6px 0;max-height:220px;object-fit:contain;background:#111}
+#bloque label.it{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--line);color:var(--ink);font-size:15px;margin:0}
+#bloque label.it input{width:22px;height:22px;flex:none;margin-top:2px}
+#bloque label.it code{font:700 16px ui-monospace,Menlo,monospace;display:block}
+#bloque label.it small{display:block;color:var(--mute);font-size:12px}
+#bloque label.it em{display:block;color:var(--warn);font-size:12px;font-style:normal;font-weight:700}
 #hallado{position:fixed;inset:0;background:#1f9d55;color:#fff;display:none;place-items:center;text-align:center;padding:24px;z-index:20}
 #hallado button{background:#fff;color:#1f6b3d;border:0;font-weight:700}
 .pista{font-size:22px;font-weight:800;text-align:center;padding:8px;border-radius:10px;margin-top:8px}
@@ -167,6 +175,11 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <button id="oH" aria-pressed="true">Etiqueta horizontal</button>
     <button id="oV" aria-pressed="false">Etiqueta vertical</button>
   </div>
+  <div class="seg" role="group" aria-label="Tamaño del marco" id="tamBox" style="margin-top:6px">
+    <button id="tS" aria-pressed="true">Marco pequeño</button>
+    <button id="tM" aria-pressed="false">Mediano</button>
+    <button id="tL" aria-pressed="false">Grande</button>
+  </div>
   <div id="cam">
     <video id="vid" playsinline muted class="hidden"></video>
     <div id="reader"></div>
@@ -179,6 +192,13 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <button class="pri" id="btnCam">Iniciar cámara</button>
     <button id="btnTorch" disabled>Linterna</button>
   </div>
+  <button id="btnBloque" class="hidden" style="width:100%;margin-top:8px">Leer bloque: varias etiquetas de una vez</button>
+  <section id="bloque" aria-live="polite">
+    <h3 id="blTit">Leyendo bloque…</h3>
+    <img id="blImg" alt="Foto del bloque leído">
+    <div id="blLista"></div>
+    <div class="row" style="margin-top:10px"><button class="ghost" id="blNo">Descartar</button><button class="pri" id="blSi">Registrar marcados</button></div>
+  </section>
 
   <div class="last"><div class="sig" id="lSig">—</div><div class="cnt"><b id="num">0</b><span>leídos aquí</span></div><div class="cod" id="lCod"></div><div class="tit" id="lTit"></div></div>
   <div id="msg" aria-live="assertive"></div>
@@ -323,6 +343,15 @@ const Motor = (() => {
   }
   // forma canónica: iguala caracteres que el OCR confunde (O/0, I/L/1, S/5, B/8, Z/2, G/6)
   const canon = s => s.replace(/[OQD]/g, '0').replace(/[IL|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/G/g, '6');
+  // posición de la letra inicial del autor (Cutter) dentro de la clave
+  const posCutter = cl => { const m = cl.match(/^[A-Z]{0,4}\d[\d.]*/); return m && m[0].length < cl.length ? m[0].length : -1; };
+  const CONF = { B: '8', S: '5', O: '0', Q: '0', D: '0', I: '1', L: '1', G: '6' };
+  // 'fuerte': la letra del autor se leyó como letra; 'debil': se leyó como su número parecido (B/8, S/5...); null: no corresponde
+  function calidad(raw, cl) { const k = posCutter(cl); if (k < 0) return 'fuerte'; const r = raw[k]; if (!r) return null; if (/[A-Z]/.test(r)) return r === cl[k] || canon(r) === canon(cl[k]) ? 'fuerte' : null; return CONF[cl[k]] === r ? 'debil' : null; }
+  // busca 'sub' en 'txt' sin dígitos pegados antes o después; devuelve las posiciones válidas
+  function posiciones(txt, sub) { const out = []; let i = txt.indexOf(sub); while (i >= 0) { const a = txt[i - 1], b = txt[i + sub.length]; if (!(a && /[0-9.]/.test(a)) && !(b && /[0-9]/.test(b))) out.push(i); i = txt.indexOf(sub, i + 1); } return out; }
+  // solo para signaturas Dewey con decimal y autor (p. ej. C863.64G216C), nunca para códigos cortos como AU0014
+  const sinPref = cl => { const r = cl.replace(/^[A-Z]{1,2}(?=\d{3}\.)/, ''); return (r !== cl && r.length >= 8 && /\d{3}\.\d+[A-Z]/.test(r)) ? r : cl; };
   function clavesEn(lec, ubic) {
     const u = porUbic.get(ubic); if (!u) return { exactas: [], cercanas: [] };
     const plano = lec.plano, pc = canon(plano);
@@ -330,18 +359,25 @@ const Motor = (() => {
     const cand = []; for (const k3 of clases) for (const cl of (u.porClase.get(k3) || [])) cand.push(cl);
     const masLargas = a => a.filter(x => !a.some(y => y !== x && y.includes(x)));
     // 1) idéntica en el texto leído
-    let ex = masLargas(cand.filter(cl => plano.includes(cl)));
-    // 2) idéntica salvo confusiones típicas del OCR
-    if (!ex.length) ex = masLargas(cand.filter(cl => pc.includes(canon(cl))));
-    // 3) el OCR no leyó la letra de colección (C863..., R030...): comparar sin el prefijo
-    // solo para signaturas Dewey con decimal y autor (p. ej. C863.64G216C), nunca para códigos cortos como AU0014
-    const sinPref = cl => { const r = cl.replace(/^[A-Z]{1,2}(?=\d{3}\.)/, ''); return (r !== cl && r.length >= 8 && /\d{3}\.\d+[A-Z]/.test(r)) ? r : cl; };
-    if (!ex.length) ex = masLargas(cand.filter(cl => sinPref(cl) !== cl && (plano.includes(sinPref(cl)) || pc.includes(canon(sinPref(cl))))));
+    let ex = masLargas(cand.filter(cl => posiciones(plano, cl).length));
+    const debiles = [];
+    // 2) idéntica salvo confusiones típicas del OCR (con o sin la letra de colección)
+    if (!ex.length) {
+      const fuertes = [];
+      for (const cl of cand) for (const v of new Set([cl, sinPref(cl)])) {
+        for (const i of posiciones(pc, canon(v))) { const q = calidad(plano.slice(i, i + v.length), v); if (q === 'fuerte') fuertes.push(cl); else if (q === 'debil') debiles.push(cl); }
+      }
+      ex = masLargas([...new Set(fuertes)]);
+    }
     let cercanas = [];
     if (!ex.length) {
+      if (debiles.length) return { exactas: [], cercanas: masLargas([...new Set(debiles)]).slice(0, 6), dist: 1 };
       for (const cl of cand) {
-        const cc = canon(sinPref(cl)), k3 = (cc.match(/\d{3}/) || [cc.slice(0, 3)])[0]; let pos = pc.indexOf(k3), best = 9;
-        while (pos >= 0) { best = Math.min(best, lev(pc.slice(pos, pos + cc.length), cc, 2), lev(pc.slice(pos, pos + cc.length + 1), cc, 2), lev(pc.slice(pos, pos + cc.length - 1), cc, 2)); pos = pc.indexOf(k3, pos + 1); }
+        const v = sinPref(cl), cc = canon(v), k3 = (cc.match(/\d{3}/) || [cc.slice(0, 3)])[0]; let pos = pc.indexOf(k3), best = 9;
+        while (pos >= 0) {
+          for (const L of [cc.length, cc.length + 1, cc.length - 1]) { const seg = pc.slice(pos, pos + L); const d = lev(seg, cc, 2); if (d < best && calidad(plano.slice(pos, pos + L), v) !== null) best = d; }
+          pos = pc.indexOf(k3, pos + 1);
+        }
         if (best <= 2) cercanas.push([cl, best]);
       }
       cercanas.sort((a, b) => a[1] - b[1]); const d0 = cercanas.length ? cercanas[0][1] : 9;
@@ -576,20 +612,26 @@ $('dNo').onclick=()=>{cerrarDecision();msg('Vuelve a apuntar a la etiqueta.','')
 // ---------- OCR de signaturas ----------
 let modo='sig',ori='h',stream=null,activo=false,worker=null,ocupado=false,ultimaClave='',ultimaVez=0,track=null,torch=false,lock=null,scanner=null;
 async function wake(on){try{if(on&&'wakeLock' in navigator){lock=await navigator.wakeLock.request('screen')}else if(lock){await lock.release();lock=null}}catch(e){}}
+// dos lectores trabajando a la vez: el doble de lecturas por segundo
+let workers=[];const WL='0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/- ';
 async function prepararOCR(){
-  if(worker)return worker;
+  if(workers.length)return workers;
   if(!window.Tesseract)throw new Error('sin-ocr');
   msg('Preparando el lector de signaturas (solo la primera vez tarda)…','');
-  worker=await Tesseract.createWorker('eng',1);
-  await worker.setParameters({tessedit_char_whitelist:'0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/- ',tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
-  return worker;
+  workers=await Promise.all([0,1].map(async()=>{const w=await Tesseract.createWorker('eng',1);await w.setParameters({tessedit_char_whitelist:WL,tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});return w}));
+  worker=workers[0];return workers;
 }
-const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
-function recorte(giro){
+// marco: pequeño por defecto, para encerrar una sola etiqueta
+const GEO={h:{s:{x:.2,y:.42,w:.6,h:.16},m:{x:.1,y:.37,w:.8,h:.26},l:{x:.06,y:.3,w:.88,h:.4}},v:{s:{x:.42,y:.2,w:.16,h:.6},m:{x:.37,y:.1,w:.26,h:.8},l:{x:.3,y:.06,w:.4,h:.88}}};
+let tam='s';try{tam=localStorage.getItem('crai-marco')||'s'}catch(e){}
+function aplicarMarco(){const r=GEO[ori][tam],g=$('guia');g.style.left=r.x*100+'%';g.style.top=r.y*100+'%';g.style.width=r.w*100+'%';g.style.height=r.h*100+'%';['S','M','L'].forEach(k=>$('t'+k).setAttribute('aria-pressed',tam===k.toLowerCase()))}
+const lienzos=[0,1].map(()=>{const c=document.createElement('canvas');return [c,c.getContext('2d',{willReadFrequently:true})]});
+function recorte(giro,i){
+  const [cv,cx]=lienzos[i||0];
   const v=$('vid'),W=v.videoWidth,H=v.videoHeight;if(!W||!H)return null;
-  const r=ori==='h'?{x:.06,y:.34,w:.88,h:.32}:{x:.34,y:.06,w:.32,h:.88};
+  const r=GEO[ori][tam];
   const sx=r.x*W,sy=r.y*H,sw=r.w*W,sh=r.h*H;
-  const esc2=Math.min(2,1100/Math.max(sw,sh));
+  const esc2=Math.max(1,Math.min(3,900/Math.max(sw,sh)));
   const dw=Math.round(sw*esc2),dh=Math.round(sh*esc2);
   if(giro){cv.width=dh;cv.height=dw;cx.save();cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2);cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);cx.restore()}
   else{cv.width=dw;cv.height=dh;cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh)}
@@ -598,20 +640,23 @@ function recorte(giro){
   const k=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*k));d[i]=d[i+1]=d[i+2]=g}
   cx.putImageData(im,0,0);return cv;
 }
-async function cicloOCR(){
+// cada lector lee sin pausa; en etiquetas verticales uno prueba cada sentido de giro
+function cicloOCR(){[0,1].forEach(i=>bucle(i))}
+async function bucle(i){
   if(!activo||modo!=='sig')return;
-  if(pausa||ocupado||(!T()&&!busca)){setTimeout(cicloOCR,250);return}
-  ocupado=true;
+  if(pausa||bloqueando||(!T()&&!busca)){setTimeout(()=>bucle(i),200);return}
   try{
-    const giros=ori==='h'?[0]:(ultGiro===-1?[-1,1]:[1,-1]);let mejor=null;
-    for(const g of giros){const c=recorte(g);if(!c)break;const {data}=await worker.recognize(c);
-      const ub=busca?(T()?T().ubic:busca.ubic):T().ubic;
-      const r=Motor.resolver(data.text,ub,new Set(busca?[]:T().items.map(x=>x.codigo)));
-      $('ocrtxt').textContent=data.text.trim().slice(0,120)||'…';
-      if(r.estado!=='nada'){mejor=r;if(g)ultGiro=g;break}}
-    if(mejor){vacios=0;procesar(mejor)}else{ultimaClave='';if(++vacios>=2)bloqueoSig=''}   // se libera tras dos lecturas sin etiqueta (la cámara pasó a otro libro)
+    const g=ori==='h'?0:(i===0?1:-1);
+    const c=recorte(g,i);
+    if(c){const {data}=await workers[i].recognize(c);
+      if(activo&&!pausa&&!bloqueando){
+        const ub=busca?(T()?T().ubic:busca.ubic):T().ubic;
+        const r=Motor.resolver(data.text,ub,new Set(busca?[]:T().items.map(x=>x.codigo)));
+        if(data.text.trim())$('ocrtxt').textContent=data.text.trim().slice(0,120);
+        if(r.estado!=='nada'){vacios=0;procesar(r)}else{ultimaClave='';if(++vacios>=4)bloqueoSig=''}   // se libera cuando la cámara pasa a otro libro
+      }}
   }catch(e){msg('Error leyendo: '+(e.message||e),'bad')}
-  ocupado=false;setTimeout(cicloOCR,20);
+  setTimeout(()=>bucle(i),10);
 }
 let tMarco=null;
 function marco(c){const g=$('guia');g.classList.remove('verde','ambar');void g.offsetWidth;g.classList.add(c);clearTimeout(tMarco);tMarco=setTimeout(()=>g.classList.remove('verde','ambar'),700)}
@@ -622,12 +667,17 @@ let bloqueoSig='',vacios=0,ultGiro=1;
 function procesar(r){
   if(busca){const c=r.item?[r.item]:(r.opciones||[]);if(c.length){marco('verde');procesarBusqueda(c,c[0].cn)}return}
   const k=claveRes(r),now=Date.now(),sk=sigKey(r);
-  if(sk===bloqueoSig)return;                         // misma etiqueta que acabamos de registrar: esperar a que la cámara pase a otro libro
+  if(sk===bloqueoSig)return;
+  // lo ya registrado no produce ninguna reacción: ni marco, ni sonido, ni mensaje
+  const reg=new Set(T().items.map(x=>x.codigo));
+  if(r.item&&reg.has(r.item.codigo))return;
+  if(!r.item&&(r.opciones||[]).length&&r.opciones.every(x=>reg.has(x.codigo)))return;
+  if(r.estado==='ambiguo'&&r.libres&&!r.libres.length)return;                         // misma etiqueta que acabamos de registrar: esperar a que la cámara pase a otro libro
   const seguro=r.estado==='ok'||r.estado==='ambiguo';   // signatura idéntica a la de Koha: basta una lectura
   marco(r.estado==='dudoso'&&r.tipo==='cercana'?'ambar':'verde');
   if(!seguro&&k!==ultimaClave){ultimaClave=k;return}   // lecturas aproximadas: exigen dos lecturas iguales seguidas
   ultimaClave='';ultimaVez=now;bloqueoSig=sk;
-  if(r.estado==='ok'){if(T().items.some(x=>x.codigo===r.item.codigo)){msg(`Ya estaba leído: ${sigDe(r.item)}`,'ok');return}registrar(r.item,[]);return}
+  if(r.estado==='ok'){registrar(r.item,[]);return}
   if(!$('auto').checked){mostrarDecision(r);return}
   automatico(r);
 }
@@ -640,7 +690,7 @@ function automatico(r){
   if(r.estado==='ambiguo'){
     if(deducible(libres[0])){registrar(libres[0],['Ejemplar deducido: la etiqueta no muestra número']);}
     else if(libres.length)msg(`${libres[0].cn}: las copias que faltan figuran perdidas o en otra ubicación. Escribe el código a mano si es esa.`,'dup');
-    else msg('Todas las copias de esa signatura ya están registradas.','dup');
+
     return;
   }
   if(r.tipo==='varias'){msg('Hay varias etiquetas en el marco: encuadra una sola.','dup');return}
@@ -652,7 +702,7 @@ function automatico(r){
     registrar(libres[0],['Lectura aproximada: revisar signatura'].concat(libres.length>1?['Ejemplar deducido: la etiqueta no muestra número']:[]));return;
   }
   if(r.tipo==='otra-ubic'){
-    if(!libres.length){msg('Ese ejemplar ya está registrado.','dup');return}
+    if(!libres.length)return;
     if(libres.length>1||libres[0].perdido||libres[0].retirado){msg(`${libres[0].cn}: Koha lo tiene en ${libres[0].ubic}${libres[0].perdido?' (perdido)':''}. No se registró solo; escríbelo a mano si de verdad está aquí.`,'dup');return}
     registrar(libres[0],[]);return;
   }
@@ -709,6 +759,62 @@ $('bQ').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();in
 $('bFin').onclick=terminarBusqueda;
 $('hOk').onclick=()=>{$('hallado').style.display='none';pausa=false;terminarBusqueda()};
 
+// ---------- lectura por bloque: varias etiquetas en una sola foto ----------
+let bloqueando=false,bloqueItems=[];
+function lineasDe(data){const out=[];for(const b of data.blocks||[])for(const p of b.paragraphs||[])for(const l of p.lines||[])if(l.text.trim())out.push({t:l.text.trim(),b:l.bbox});return out}
+function apiladas(ls){ // une líneas de una misma etiqueta horizontal (número arriba, autor abajo)
+  const used=new Set(),g=[];const H=l=>l.b.y1-l.b.y0;ls=ls.slice().sort((a,b)=>a.b.y0-b.b.y0);
+  for(let i=0;i<ls.length;i++){if(used.has(i))continue;const grp=[ls[i]];used.add(i);let last=ls[i];
+    for(let j=i+1;j<ls.length&&grp.length<4;j++){if(used.has(j))continue;const l=ls[j];const ov=Math.min(last.b.x1,l.b.x1)-Math.max(last.b.x0,l.b.x0);const w=Math.min(last.b.x1-last.b.x0,l.b.x1-l.b.x0);
+      if(ov>0.4*w&&l.b.y0-last.b.y1<1.6*H(last)){grp.push(l);used.add(j);last=l}}
+    if(grp.length>1)g.push(grp)}
+  return g}
+function tesela(src,x0,x1,giro){
+  const c=document.createElement('canvas'),cx=c.getContext('2d',{willReadFrequently:true});
+  const sw=(x1-x0)*src.width,sh=src.height,k=Math.max(1.2,Math.min(3,1800/Math.max(sw,sh)));const dw=Math.round(sw*k),dh=Math.round(sh*k);
+  if(giro){c.width=dh;c.height=dw;cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2)}else{c.width=dw;c.height=dh}
+  cx.drawImage(src,x0*src.width,0,sw,sh,0,0,dw,dh);
+  const im=cx.getImageData(0,0,c.width,c.height),d=im.data;let mn=255,mx=0;for(let i=0;i<d.length;i+=4){const g=.3*d[i]+.59*d[i+1]+.11*d[i+2];d[i]=g;if(g<mn)mn=g;if(g>mx)mx=g}
+  const f=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*f));d[i]=d[i+1]=d[i+2]=g}cx.putImageData(im,0,0);return c}
+async function leerBloque(){
+  const t=T();if(!t||!activo||modo!=='sig'||bloqueando)return;
+  const v=$('vid');if(!v.videoWidth)return;
+  bloqueando=true;$('btnBloque').disabled=true;
+  const foto=document.createElement('canvas');foto.width=v.videoWidth;foto.height=v.videoHeight;foto.getContext('2d').drawImage(v,0,0);
+  $('blImg').src=foto.toDataURL('image/jpeg',.7);$('blTit').textContent='Leyendo bloque… (unos segundos)';$('blLista').innerHTML='';$('bloque').style.display='block';
+  sonido(true);
+  try{
+    await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'11'})));
+    const franjas=[[0,.4],[.3,.7],[.6,1]],giros=ori==='h'?[0]:[1,-1];const trabajos=[];
+    for(const [a,b] of franjas)for(const g of giros)trabajos.push(tesela(foto,a,b,g));
+    const textos=[];let n=0;
+    await Promise.all(workers.map(async w=>{while(n<trabajos.length){const c=trabajos[n++];const {data}=await w.recognize(c,{},{blocks:true,text:true});textos.push(lineasDe(data))}}));
+    const reg=new Set(t.items.map(x=>x.codigo)),vistos=new Set(),usados=new Set();bloqueItems=[];
+    for(const ls of textos){
+      const cands=[...ls.map(l=>l.t),...apiladas(ls).map(g=>g.map(x=>x.t).join(' '))];
+      for(const txt of cands){
+        const r=Motor.resolver(txt,t.ubic,reg);let it=null,nota='',marcar=true;
+        if(r.estado==='ok')it=r.item;
+        else if(r.estado==='ambiguo'){const lib=(r.libres||[]).filter(x=>!usados.has(x.codigo)&&!x.perdido&&!x.retirado&&x.ubic===t.ubic);it=lib[0]||null;nota='Ejemplar deducido: la etiqueta no muestra número'}
+        else if(r.estado==='dudoso'&&r.tipo==='cercana'&&r.dist<=1&&new Set(r.opciones.map(x=>x.cn)).size===1){const lib=r.opciones.filter(x=>!reg.has(x.codigo)&&!usados.has(x.codigo)&&!x.perdido&&x.ubic===t.ubic);it=lib[0]||null;nota='Lectura aproximada: revisar signatura';marcar=false}
+        if(!it||reg.has(it.codigo)||usados.has(it.codigo))continue;
+        const sk=it.cn+'|'+(r.lec.e||'')+'|'+(r.lec.v||'');if(r.estado==='ambiguo'&&vistos.has(sk))continue;vistos.add(sk);
+        usados.add(it.codigo);bloqueItems.push({it,nota,marcar});
+      }
+    }
+    bloqueItems.sort((a,b)=>Motor.claveOrden(a.it.cn)<Motor.claveOrden(b.it.cn)?-1:1);
+    $('blTit').textContent=bloqueItems.length?`Bloque: ${bloqueItems.length} etiqueta${bloqueItems.length===1?'':'s'} nueva${bloqueItems.length===1?'':'s'}. Desmarca las que no correspondan.`:'No reconocí etiquetas nuevas en este bloque. Acércate un poco más o usa el marco para leerlas una a una.';
+    $('blLista').innerHTML=bloqueItems.map((x,i)=>`<label class="it"><input type="checkbox" data-b="${i}"${x.marcar?' checked':''}><span><code>${esc(sigDe(x.it))}</code><small>${esc(x.it.codigo)} · ${esc(x.it.titulo||'')}</small>${x.nota?`<em>${esc(x.nota)}</em>`:''}</span></label>`).join('');
+    $('blSi').disabled=!bloqueItems.length;
+  }catch(e){$('blTit').textContent='No se pudo leer el bloque: '+(e.message||e)}
+  finally{await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'6'})).map(p=>p.catch(()=>{})))}
+}
+function cerrarBloque(){$('bloque').style.display='none';bloqueItems=[];bloqueando=false;$('btnBloque').disabled=false;bloqueoSig='';ultimaClave=''}
+$('btnBloque').onclick=leerBloque;
+$('blNo').onclick=()=>{cerrarBloque();msg('Bloque descartado.','')};
+$('blSi').onclick=()=>{let n=0;$('blLista').querySelectorAll('input[data-b]').forEach(cb=>{if(!cb.checked)return;const x=bloqueItems[+cb.dataset.b];if(registrar(x.it,x.nota?[x.nota,'Leído por bloque']:['Leído por bloque']))n++});cerrarBloque();msg(`Bloque registrado: ${n} libro${n===1?'':'s'}.`,'ok')};
+['S','M','L'].forEach(k=>$('t'+k).onclick=()=>{tam=k.toLowerCase();try{localStorage.setItem('crai-marco',tam)}catch(e){}aplicarMarco()});
+
 // ---------- cámara ----------
 async function camara(){
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){}
@@ -723,7 +829,7 @@ async function camara(){
     const v=$('vid');v.srcObject=stream;v.classList.remove('hidden');await v.play();track=stream.getVideoTracks()[0];
     $('guia').style.display='block';$('ocrtxt').style.display='block';$('camoff').style.display='none';
     try{const cap=track.getCapabilities?track.getCapabilities():{};$('btnTorch').disabled=!cap.torch}catch(e){}
-    activo=true;wake(true);$('btnCam').textContent='Detener cámara';msg('Encierra una etiqueta en el marco amarillo.','');cicloOCR();
+    aplicarMarco();activo=true;wake(true);$('btnCam').textContent='Detener cámara';$('btnBloque').classList.remove('hidden');msg('Encierra una etiqueta en el marco amarillo, o usa “Leer bloque” para varias a la vez.','');cicloOCR();
   }else{
     if(!window.Html5Qrcode){msg('No cargó el lector de códigos. Revisa la conexión y recarga.','bad');return}
     const F=Html5QrcodeSupportedFormats;
@@ -739,7 +845,7 @@ async function apagar(){
   activo=false;wake(false);
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;track=null}
   if(scanner){try{await scanner.stop()}catch(e){}}
-  $('vid').classList.add('hidden');$('guia').style.display='none';$('ocrtxt').style.display='none';$('camoff').style.display='';
+  $('vid').classList.add('hidden');$('guia').style.display='none';$('btnBloque').classList.add('hidden');$('ocrtxt').style.display='none';$('camoff').style.display='';
   $('btnCam').textContent='Iniciar cámara';$('btnTorch').disabled=true;torch=false;$('btnTorch').textContent='Linterna';
 }
 async function linterna(){if(!activo)return;torch=!torch;
@@ -751,6 +857,7 @@ function onCodigo(text){
   if(text===cBloq&&now-cBloqT<2500)return;
   if(!(text===cUlt&&now-cT<1500)){cUlt=text;cT=now;return}
   cBloq=text;cBloqT=now;cUlt='';
+  if(T()&&T().items.some(x=>x.codigo===String(text).trim().toUpperCase()))return;
   if(busca){const it=Motor.buscarCodigo(text);if(it&&busca.codigos.has(it.codigo))hallado(it);else if(it)pista(it.cn);return}
   porCodigo(text,false);
 }
@@ -761,8 +868,8 @@ function porCodigo(code,manual){
   if(hayMaestro&&!it){msg(`El código ${code} no está en el maestro de Koha. No se registró.`,'bad');sonido(false);return}
   registrar(it||{codigo:code,cn:'',copia:'',titulo:'',ubic:T()?T().ubic:''},manual?['Escrito a mano']:[]);
 }
-function setModo(m){if(modo===m)return;const fue=activo;apagar().then(()=>{modo=m;$('mSig').setAttribute('aria-pressed',m==='sig');$('mCod').setAttribute('aria-pressed',m==='cod');$('oriBox').classList.toggle('hidden',m!=='sig');if(fue)camara()})}
-function setOri(o){ori=o;$('oH').setAttribute('aria-pressed',o==='h');$('oV').setAttribute('aria-pressed',o==='v');$('guia').className=o;ultimaClave=''}
+function setModo(m){if(modo===m)return;const fue=activo;apagar().then(()=>{modo=m;$('mSig').setAttribute('aria-pressed',m==='sig');$('mCod').setAttribute('aria-pressed',m==='cod');$('oriBox').classList.toggle('hidden',m!=='sig');$('tamBox').classList.toggle('hidden',m!=='sig');if(fue)camara()})}
+function setOri(o){ori=o;$('oH').setAttribute('aria-pressed',o==='h');$('oV').setAttribute('aria-pressed',o==='v');$('guia').className='';aplicarMarco();ultimaClave=''}
 
 // ---------- entrepaño y envío ----------
 function fijar(){
@@ -833,7 +940,7 @@ $('btnClear').onclick=()=>{const t=T();if(!t||!t.items.length)return;preguntar(`
 $('btnDel').onclick=()=>{const t=T();if(!t)return;preguntar(`¿Eliminar por completo\n${nombreT(t)}\ny sus ${t.items.length} libros?`,()=>{delete st.tramos[st.cur];st.cur='';save();render();msg('Entrepaño eliminado.','')},'Eliminar')};
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&activo)wake(true)});
 if(!window.isSecureContext)aviso('Abre esta página desde su enlace https (GitHub Pages). Así la cámara funciona.');
-render();iniciarMaestro();
+render();iniciarMaestro();aplicarMarco();
 // para pruebas automáticas
 window.__inv={buscarTexto:(t)=>{const r=Motor.resolver(t,T()?T().ubic:busca.ubic,new Set());procesar(r);return r.estado},vacio:()=>{ultimaClave='';bloqueoSig=''},procesarTexto:(txt)=>{const r=Motor.resolver(txt,T().ubic,new Set(T().items.map(x=>x.codigo)));ultimaClave=claveRes(r);procesar(r);return r.estado}};
 }
