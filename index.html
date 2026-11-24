@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Escáner de inventario · CRAI UAO</title>
+<style>
+/*
+VOICE: herramienta de trabajo en el estante, sobria, rápida y a prueba de errores.
+IDEA: la planilla de inventario por entrepaño, con su fecha fija.
+PICTURE: la cámara arriba, el último código leído en grande, la lista debajo.
+COLOUR and TYPE: vinotinto UAO #8C1D2F sobre blanco; Arial/sistema.
+LAYOUT: una columna para celular, botones grandes al alcance del pulgar.
+*/
+:root{color-scheme:light dark;--bg:#fff;--ink:#1c1a1b;--soft:#f4f0f1;--line:#e2d9dc;--acc:#8C1D2F;--acc2:#8C1D2F;--ok:#1f7a44;--warn:#9a5b00;--bad:#c62828;--mute:#6b6064}
+@media (prefers-color-scheme:dark){:root{--bg:#141012;--ink:#f2eeef;--soft:#231d20;--line:#3a3034;--acc2:#e0778a;--ok:#5fd18f;--warn:#f0b45a;--bad:#ff6b6b;--mute:#b3a7ab}}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Arial,Helvetica,system-ui,sans-serif;overflow-x:clip}
+header{background:var(--acc);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;line-height:1.2}
+header small{opacity:.9;font-size:13px}
+.fecha{background:#fff;color:var(--acc);border-radius:6px;padding:4px 8px;font-weight:700;font-size:14px;white-space:nowrap}
+main{max-width:640px;margin:0 auto;padding:12px 14px 130px}
+h2{font-size:15px;margin:18px 0 8px}
+label{font-size:13px;display:block;margin-bottom:4px;color:var(--mute)}
+input[type=text],select{width:100%;font-size:16px;padding:10px 12px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus,button:focus-visible,select:focus{outline:3px solid var(--acc2);outline-offset:1px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.row>*{flex:1 1 0}
+button{font:inherit;font-size:15px;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+button.ghost{background:transparent}
+button:disabled{opacity:.45;cursor:not-allowed}
+.tramobox{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft)}
+.tramoname{font-weight:700;font-size:17px;margin-top:8px}
+.estado{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:middle}
+.estado.p{background:#fde9c8;color:#7a4a00}.estado.e{background:#d5f0df;color:#145c33}
+#cam{margin:12px 0 8px;border-radius:12px;overflow:hidden;background:#111;position:relative;min-height:200px;display:grid;place-items:center}
+#reader{width:100%}
+#reader video{width:100%!important;display:block}
+#camoff{color:#ddd;text-align:center;padding:24px;font-size:15px}
+#flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s}
+.last{display:flex;justify-content:space-between;align-items:center;gap:10px;border:2px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:8px}
+.last code{font:700 30px/1.1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em}
+.last .cnt{text-align:right}.last .cnt b{display:block;font-size:34px;line-height:1;color:var(--acc2)}.last .cnt span{font-size:12px;color:var(--mute)}
+#msg{min-height:26px;font-size:15px;font-weight:700;margin-top:6px}
+#msg.ok{color:var(--ok)}#msg.dup{color:var(--warn)}#msg.bad{color:var(--bad)}
+ol{list-style:none;padding:0;margin:8px 0;border-top:1px solid var(--line)}
+li{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line)}
+li .n{width:2.4em;text-align:right;color:var(--mute);font-size:13px}
+li code{font:600 17px/1.2 ui-monospace,Menlo,Consolas,monospace;flex:1}
+li .flag{font-size:12px;color:var(--warn);font-weight:700}
+li button{min-height:36px;padding:4px 10px;font-size:13px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:5}
+.bar button{flex:1;font-size:14px}
+details{margin-top:18px;font-size:14px}
+summary{cursor:pointer;font-weight:700;min-height:32px}
+.note{font-size:13px;color:var(--mute)}
+#dlg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;padding:16px;z-index:9}
+#dlg>div{background:var(--bg);border-radius:12px;padding:18px;max-width:440px;width:100%}
+#dlg p{margin:0 0 14px;white-space:pre-line}
+#aviso{display:none;background:#fde9c8;color:#5c3800;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px}
+@media (max-width:420px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.grid>div:first-child{grid-column:1/-1}.last code{font-size:24px}}
+@media (prefers-reduced-motion:reduce){#flash{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Escáner de inventario</h1><small>CRAI · Universidad Autónoma de Occidente</small></div>
+  <span class="fecha" title="Fecha de inventario fija para todo el proceso">Inventario: 24/11/2026</span>
+</header>
+<main>
+  <div id="aviso"></div>
+
+  <section class="tramobox" aria-labelledby="t1">
+    <h2 id="t1" style="margin-top:0">1. Entrepaño que vas a escanear</h2>
+    <div class="grid">
+      <div><label for="ubic">Ubicación</label><input type="text" id="ubic" placeholder="Sótano 2" autocomplete="off"></div>
+      <div><label for="est">Estante</label><input type="text" id="est" inputmode="numeric" placeholder="4" autocomplete="off"></div>
+      <div><label for="ent">Entrepaño</label><input type="text" id="ent" inputmode="numeric" placeholder="3" autocomplete="off"></div>
+    </div>
+    <div class="grid2">
+      <div><label for="sig1">Primera signatura (opcional)</label><input type="text" id="sig1" placeholder="330.122 R347t" autocomplete="off"></div>
+      <div><label for="sig2">Última signatura (opcional)</label><input type="text" id="sig2" placeholder="330.15 H669s" autocomplete="off"></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="pri" id="btnFijar">Usar este entrepaño</button>
+      <div><label for="lista">O retomar uno guardado</label><select id="lista"></select></div>
+    </div>
+    <div class="tramoname" id="tramoname" aria-live="polite"></div>
+  </section>
+
+  <h2>2. Escanear</h2>
+  <div id="cam">
+    <div id="reader"></div>
+    <div id="camoff">Primero elige el entrepaño.<br>Luego pulsa <b>Iniciar cámara</b> y pasa los libros uno a uno.</div>
+    <div id="flash"></div>
+  </div>
+  <div class="row">
+    <button class="pri" id="btnCam">Iniciar cámara</button>
+    <button id="btnTorch" disabled>Linterna</button>
+  </div>
+
+  <div class="last"><code id="lastcode">—</code><div class="cnt"><b id="num">0</b><span>en este entrepaño</span></div></div>
+  <div id="msg" aria-live="assertive"></div>
+
+  <div class="row" style="margin-top:8px">
+    <div style="flex:2 1 0"><label for="manual">Código que no se deja leer (7 dígitos)</label>
+      <input type="text" id="manual" inputmode="numeric" placeholder="Ej.: 0042601" autocomplete="off" maxlength="12"></div>
+    <button id="btnAdd" style="flex:0 0 auto">Agregar</button>
+  </div>
+
+  <h2>3. Lista del entrepaño</h2>
+  <ol id="items"></ol>
+
+  <details>
+    <summary>Cómo usarla sin errores</summary>
+    <ol style="border:0;padding-left:18px;list-style:decimal">
+      <li style="display:list-item;border:0">Escribe ubicación, estante y entrepaño, y pulsa <b>Usar este entrepaño</b>. Sin entrepaño, la cámara no se activa.</li>
+      <li style="display:list-item;border:0">Pasa los libros en el orden del estante. Cada código se acepta solo cuando la cámara lo lee igual dos veces seguidas: pitido agudo y vibración corta = registrado.</li>
+      <li style="display:list-item;border:0">Pitido grave = repetido o código inválido; no se registra. Mira el mensaje y el código grande.</li>
+      <li style="display:list-item;border:0">Al terminar, pulsa <b>Enviar a Claude</b> (copia el entrepaño con su fecha y rango) y pégalo en el chat. El entrepaño queda marcado como enviado.</li>
+      <li style="display:list-item;border:0">La fecha de inventario es siempre 24/11/2026 y viaja en cada envío y archivo.</li>
+    </ol>
+    <p class="note">Todo se guarda en este celular y navegador. No borres los datos del navegador hasta terminar; descarga un respaldo al final de cada jornada.</p>
+    <div class="grid2">
+      <button class="ghost" id="btnTxt">Descargar .txt para Koha</button>
+      <button class="ghost" id="btnBackup">Descargar respaldo completo</button>
+      <button class="ghost" id="btnClear">Vaciar este entrepaño</button>
+      <button class="ghost" id="btnDel">Eliminar este entrepaño</button>
+    </div>
+  </details>
+</main>
+
+<div class="bar">
+  <button id="btnUndo">Deshacer</button>
+  <button class="pri" id="btnSend">Enviar a Claude</button>
+</div>
+
+<div id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTxt"><div><p id="dlgTxt"></p><div class="row"><button id="dlgNo">Cancelar</button><button class="pri" id="dlgYes">Sí</button></div></div></div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+{
+const FECHA_INV='2026-11-24', FECHA_TXT='24/11/2026';
+const PATRON=/^\d{7}$/;          // código de barras UAO: 7 dígitos
+const PERDIDO=/^\d{7}-P$/i;      // ítem marcado como perdido en Koha
+const KEY='crai-inventario-v2';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Estado: {tramos:{id:{ubic,est,ent,sig1,sig2,codes:[],enviado:null|iso,creado}}, cur:id}
+let st={tramos:{},cur:''};
+let almacen=true;
+try{const r=localStorage.getItem(KEY);if(r)st=JSON.parse(r);if(!st||!st.tramos)st={tramos:{},cur:''}}catch(e){almacen=false}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){almacen=false;aviso('Este navegador no está guardando los datos. No cierres la página y descarga el respaldo con frecuencia.')}}
+function aviso(t){const a=$('aviso');a.textContent=t;a.style.display=t?'block':'none'}
+
+const T=()=>st.tramos[st.cur]||null;
+const nombreT=t=>t?`${t.ubic} · Estante ${t.est} · Entrepaño ${t.ent}`:'';
+const idT=(u,e,n)=>[u,e,n].map(x=>x.trim().toLowerCase()).join('|');
+function dondeEsta(code){for(const [id,t] of Object.entries(st.tramos)){if(t.codes.includes(code))return id}return null}
+
+function render(){
+  const t=T();
+  $('tramoname').innerHTML=t?`Activo: ${esc(nombreT(t))}${t.enviado?'<span class="estado e">Enviado</span>':'<span class="estado p">Pendiente</span>'}${(t.sig1||t.sig2)?`<div class="note">Rango: ${esc(t.sig1||'¿?')} – ${esc(t.sig2||'¿?')}</div>`:''}`:'<span class="note">Ningún entrepaño activo.</span>';
+  const codes=t?t.codes:[];
+  $('num').textContent=codes.length;
+  $('lastcode').textContent=codes.length?codes[codes.length-1]:'—';
+  $('items').innerHTML=codes.map((c,i)=>`<li><span class="n">${i+1}</span><code>${esc(c)}</code>${PERDIDO.test(c)?'<span class="flag">perdido en Koha</span>':''}<button data-i="${i}" aria-label="Quitar ${esc(c)}">Quitar</button></li>`).reverse().join('')||'<li class="note" style="border:0">Aún no hay códigos.</li>';
+  const ids=Object.keys(st.tramos).sort((a,b)=>st.tramos[a].creado<st.tramos[b].creado?1:-1);
+  $('lista').innerHTML='<option value="">— elegir —</option>'+ids.map(id=>{const x=st.tramos[id];return `<option value="${esc(id)}"${id===st.cur?' selected':''}>${esc(nombreT(x))} (${x.codes.length})${x.enviado?' ✓':''}</option>`}).join('');
+  if(t){$('ubic').value=t.ubic;$('est').value=t.est;$('ent').value=t.ent;$('sig1').value=t.sig1||'';$('sig2').value=t.sig2||''}
+  const on=!!t;['btnUndo','btnSend','btnAdd','manual','btnTxt','btnClear','btnDel'].forEach(i=>$(i).disabled=!on);
+}
+function msg(t,cls){const m=$('msg');m.textContent=t;m.className=cls||''}
+
+let actx=null;
+function sonido(ok){
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=ok?1300:330;g.gain.value=.18;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+(ok?.09:.28))}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(ok?60:[60,60,60])}catch(e){}
+  const f=$('flash');f.style.background=ok?'rgba(40,180,90,.38)':'rgba(220,60,40,.38)';f.style.opacity=1;setTimeout(()=>f.style.opacity=0,200);
+}
+
+let pendiente=null,cancelar=null;
+function preguntar(t,fn,si,no){$('dlgTxt').textContent=t;$('dlgYes').textContent=si||'Sí';pendiente=fn;cancelar=no||null;$('dlg').style.display='grid';$('dlgNo').focus()}
+$('dlgNo').onclick=()=>{$('dlg').style.display='none';const f=cancelar;pendiente=null;cancelar=null;f&&f()};
+$('dlgYes').onclick=()=>{$('dlg').style.display='none';const f=pendiente;pendiente=null;cancelar=null;f&&f()};
+
+function registrar(code,origen){
+  const t=T();
+  if(!t){msg('Primero elige el entrepaño.','bad');sonido(false);return}
+  code=String(code||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(!code)return;
+  if(!PATRON.test(code)&&!PERDIDO.test(code)){msg(`Código inválido: ${code}. Debe tener 7 dígitos. No se registró.`,'bad');sonido(false);return}
+  if(t.codes.includes(code)){msg(`Ya estaba en este entrepaño: ${code}`,'dup');sonido(false);return}
+  const otro=dondeEsta(code);
+  const hacer=()=>{if(otro&&otro!==st.cur){const o=st.tramos[otro];o.codes=o.codes.filter(c=>c!==code);o.enviado=null}
+    if(t.enviado){t.enviado=null}
+    t.codes.push(code);save();render();
+    msg(`${origen==='manual'?'Agregado':'Registrado'}: ${code}${PERDIDO.test(code)?' · figura como perdido en Koha, avísale a Claude':''}`,PERDIDO.test(code)?'dup':'ok');sonido(true)};
+  if(otro&&otro!==st.cur){pausa=true;sonido(false);preguntar(`El código ${code} ya está registrado en:\n${nombreT(st.tramos[otro])}\n\n¿Moverlo a este entrepaño? Hazlo solo si el libro de verdad está aquí.`,()=>{hacer();pausa=false},'Mover aquí',()=>{pausa=false;msg('No se movió '+code,'dup')});return}
+  if(t.enviado){pausa=true;preguntar(`Este entrepaño ya se envió a Claude. Si agregas ${code}, quedará pendiente y tendrás que enviarlo de nuevo. ¿Agregar?`,()=>{hacer();pausa=false},'Agregar',()=>{pausa=false});return}
+  hacer();
+}
+
+// Lectura confirmada: el mismo código en dos lecturas seguidas
+let ultimo='',ultimoT=0,bloqueo='',bloqueoT=0,pausa=false;
+function onScan(text){
+  if(pausa)return;
+  const now=Date.now();
+  if(text===bloqueo&&now-bloqueoT<2500)return;
+  if(text===ultimo&&now-ultimoT<1500){bloqueo=text;bloqueoT=now;ultimo='';registrar(text,'cam')}
+  else{ultimo=text;ultimoT=now}
+}
+
+let scanner=null,activo=false,torch=false,lock=null;
+async function wake(on){try{if(on&&'wakeLock' in navigator){lock=await navigator.wakeLock.request('screen')}else if(lock){await lock.release();lock=null}}catch(e){}}
+async function camara(){
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){}
+  if(activo){try{await scanner.stop()}catch(e){}activo=false;wake(false);$('btnCam').textContent='Iniciar cámara';$('camoff').style.display='';$('btnTorch').disabled=true;msg('Cámara detenida.','');return}
+  if(!T()){msg('Primero escribe el entrepaño y pulsa “Usar este entrepaño”.','bad');sonido(false);$('ubic').focus();return}
+  if(!window.isSecureContext){msg('La cámara solo funciona si la página se abre con https.','bad');return}
+  if(!window.Html5Qrcode){msg('No cargó el lector. Revisa la conexión a internet y recarga.','bad');return}
+  const F=Html5QrcodeSupportedFormats;
+  scanner=scanner||new Html5Qrcode('reader',{verbose:false,formatsToSupport:[F.CODE_128,F.CODE_39,F.CODE_93,F.CODABAR,F.ITF,F.EAN_13,F.EAN_8,F.UPC_A],experimentalFeatures:{useBarCodeDetectorIfSupported:true}});
+  try{
+    await scanner.start({facingMode:'environment'},{fps:12,qrbox:(w,h)=>({width:Math.floor(w*.88),height:Math.max(80,Math.floor(Math.min(h,w)*.32))}),aspectRatio:1.333},onScan,()=>{});
+    activo=true;wake(true);$('btnCam').textContent='Detener cámara';$('camoff').style.display='none';
+    try{const cap=scanner.getRunningTrackCapabilities();$('btnTorch').disabled=!(cap&&cap.torch)}catch(e){}
+    msg('Cámara lista. Apunta al código de barras.','');
+  }catch(e){msg('No se pudo abrir la cámara. Permite el acceso a la cámara para esta página en el navegador y vuelve a intentar.','bad')}
+}
+async function linterna(){if(!scanner||!activo)return;torch=!torch;try{await scanner.applyVideoConstraints({advanced:[{torch}]});$('btnTorch').textContent=torch?'Apagar linterna':'Linterna'}catch(e){torch=!torch;msg('Este celular no permite la linterna desde el navegador.','dup')}}
+
+function fijar(){
+  const u=$('ubic').value.trim(),e=$('est').value.trim(),n=$('ent').value.trim();
+  if(!u||!e||!n){msg('Completa ubicación, estante y entrepaño.','bad');sonido(false);return}
+  const id=idT(u,e,n);
+  if(!st.tramos[id])st.tramos[id]={ubic:u,est:e,ent:n,sig1:'',sig2:'',codes:[],enviado:null,creado:new Date().toISOString()};
+  const t=st.tramos[id];t.sig1=$('sig1').value.trim();t.sig2=$('sig2').value.trim();
+  st.cur=id;save();render();ultimo='';bloqueo='';
+  msg((t.codes.length?'Retomaste: ':'Entrepaño listo: ')+nombreT(t),'ok');
+}
+
+function textoClaude(t){return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Tramo: ${nombreT(t)}`,`Rango de signaturas: ${t.sig1||'no indicado'} – ${t.sig2||'no indicado'}`,`Cantidad: ${t.codes.length}`,`Códigos:`,...t.codes].join('\n')}
+function archivo(base){return (`inventario_${FECHA_INV}_${base}`).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-')+'.txt'}
+function descargar(n,c){const b=new Blob([c],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
+async function copiar(txt){try{await navigator.clipboard.writeText(txt);return true}catch(e){const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();return ok}}
+
+$('btnFijar').onclick=fijar;
+$('lista').onchange=()=>{const v=$('lista').value;if(v&&st.tramos[v]){st.cur=v;save();render();msg('Retomaste: '+nombreT(st.tramos[v]),'ok')}};
+['sig1','sig2'].forEach(i=>$(i).addEventListener('change',()=>{const t=T();if(t&&idT($('ubic').value,$('est').value,$('ent').value)===st.cur){t[i]=$(i).value.trim();save();render()}}));
+$('btnCam').onclick=camara;
+$('btnTorch').onclick=linterna;
+$('btnAdd').onclick=()=>{const v=$('manual').value;if(!v.trim())return;const c=v.trim().toUpperCase();preguntar(`¿Registrar a mano el código ${c}?\nVerifica cada dígito con la etiqueta del libro.`,()=>{registrar(c,'manual');$('manual').value='';$('manual').focus()},'Registrar')};
+$('manual').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('btnAdd').click()}});
+$('items').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;const t=T();const i=+b.dataset.i;const c=t.codes[i];preguntar(`¿Quitar ${c} de este entrepaño?`,()=>{t.codes.splice(i,1);t.enviado=null;save();render();msg('Quitado: '+c,'')},'Quitar')});
+$('btnUndo').onclick=()=>{const t=T();if(!t||!t.codes.length)return;const c=t.codes[t.codes.length-1];preguntar(`¿Deshacer el último código (${c})?`,()=>{t.codes.pop();t.enviado=null;save();render();msg('Deshecho: '+c,'')},'Deshacer')};
+$('btnSend').onclick=async()=>{const t=T();if(!t)return;if(!t.codes.length){msg('Este entrepaño no tiene códigos.','dup');return}
+  if(await copiar(textoClaude(t))){t.enviado=new Date().toISOString();save();render();msg(`Copiado (${t.codes.length} códigos, fecha ${FECHA_TXT}). Pégalo en el chat con Claude.`,'ok')}
+  else{msg('No se pudo copiar. Usa “Descargar .txt para Koha” en el menú de abajo.','bad')}};
+$('btnTxt').onclick=()=>{const t=T();if(!t||!t.codes.length){msg('No hay códigos.','dup');return}descargar(archivo(nombreT(t)),t.codes.join('\n')+'\n');msg('Descargado: '+archivo(nombreT(t)),'ok')};
+$('btnBackup').onclick=()=>{const ids=Object.keys(st.tramos).filter(id=>st.tramos[id].codes.length);if(!ids.length){msg('No hay datos para respaldar.','dup');return}descargar(archivo('respaldo-completo'),ids.map(id=>textoClaude(st.tramos[id])).join('\n\n')+'\n');msg(`Respaldo descargado: ${ids.length} entrepaños.`,'ok')};
+$('btnClear').onclick=()=>{const t=T();if(!t||!t.codes.length)return;preguntar(`¿Vaciar los ${t.codes.length} códigos de\n${nombreT(t)}?\nNo se puede deshacer.`,()=>{t.codes=[];t.enviado=null;save();render();msg('Entrepaño vaciado.','')},'Vaciar')};
+$('btnDel').onclick=()=>{const t=T();if(!t)return;preguntar(`¿Eliminar por completo\n${nombreT(t)}\ny sus ${t.codes.length} códigos?`,()=>{delete st.tramos[st.cur];st.cur='';save();render();['ubic','est','ent','sig1','sig2'].forEach(i=>$(i).value='');msg('Entrepaño eliminado.','')},'Eliminar')};
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&activo)wake(true)});
+window.addEventListener('beforeunload',e=>{if(Object.values(st.tramos).some(t=>t.codes.length&&!t.enviado)&&!almacen){e.preventDefault();e.returnValue=''}});
+
+if(!window.isSecureContext)aviso('Abre esta página desde su enlace https (GitHub Pages). Así la cámara funciona.');
+render();
+}
+</script>
+</body>
+</html>
