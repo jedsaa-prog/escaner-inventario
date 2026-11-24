@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ubica tu libro · CRAI UAO</title>
+<meta name="description" content="Encuentra en qué piso y estantería está un libro del CRAI de la Universidad Autónoma de Occidente, y dónde va el libro que estás consultando.">
+<style>
+/*
+VOICE: amable y directa, para un estudiante parado frente a los estantes.
+IDEA: la ficha de ubicación que el bibliotecario escribiría a mano: piso, zona, estante, etiqueta.
+PICTURE: la etiqueta del lomo dibujada en grande, con el camino hasta ella.
+COLOUR and TYPE: vinotinto UAO #8C1D2F, blanco, un gris cálido; Arial/sistema.
+LAYOUT: una columna, buscador arriba, resultados en tarjetas, botón grande para la cámara.
+*/
+:root{color-scheme:light dark;--bg:#fff;--ink:#1c1a1b;--soft:#f6f2f3;--line:#e4dadd;--acc:#8C1D2F;--acc2:#8C1D2F;--mute:#6b6064;--ok:#1f7a44}
+@media (prefers-color-scheme:dark){:root{--bg:#141012;--ink:#f2eeef;--soft:#221c1f;--line:#3a3034;--acc2:#e0778a;--mute:#b3a7ab;--ok:#5fd18f}}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Arial,Helvetica,system-ui,sans-serif;overflow-x:clip}
+header{background:var(--acc);color:#fff;padding:18px 16px 22px}
+header h1{margin:0;font-size:clamp(26px,6vw,36px);line-height:1.1}
+header p{margin:6px 0 0;opacity:.92;font-size:15px}
+main{max-width:680px;margin:0 auto;padding:0 14px 60px}
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:-18px 0 14px;background:var(--bg);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.seg button{flex:1;border:0;background:var(--bg);color:var(--ink);font:inherit;font-size:15px;min-height:50px;cursor:pointer}
+.seg button[aria-selected=true]{background:var(--acc);color:#fff;font-weight:700}
+label{display:block;font-size:14px;color:var(--mute);margin-bottom:4px}
+input[type=search],input[type=text]{width:100%;font-size:17px;padding:12px 14px;min-height:50px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+input:focus,button:focus-visible{outline:3px solid var(--acc2);outline-offset:2px}
+button{font:inherit;cursor:pointer}
+.btn{min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font-size:16px}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.note{font-size:14px;color:var(--mute)}
+.estado{margin:10px 2px;font-size:14px;color:var(--mute);min-height:20px}
+.card{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px;background:var(--bg)}
+.card h3{margin:0;font-size:17px;line-height:1.3}
+.card .anio{color:var(--mute);font-weight:400}
+.etq{display:inline-block;margin-top:10px;background:#fff;color:#111;border:2px solid #222;border-radius:6px;padding:6px 10px;font:700 18px/1.2 ui-monospace,Menlo,Consolas,monospace;box-shadow:2px 2px 0 rgba(0,0,0,.15)}
+.ruta{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:6px}
+.ruta li{display:flex;gap:10px;align-items:baseline}
+.ruta b{min-width:6.5em;color:var(--mute);font-weight:400;font-size:14px}
+.ruta span{font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:13px}
+#cam{position:relative;border-radius:14px;overflow:hidden;background:#111;margin-top:12px;min-height:220px;display:grid;place-items:center}
+#cam video{width:100%;display:block}
+#guia{position:absolute;border:4px solid #ffd54a;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);left:6%;width:88%;top:34%;height:32%;display:none;transition:border-color .15s}
+#guia.v{left:34%;width:32%;top:6%;height:88%}
+#guia.verde{border-color:#2ecc71}
+#camoff{color:#ddd;text-align:center;padding:30px 20px}
+.fila{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.fila>*{flex:1 1 0}
+.res-donde{border:3px solid var(--ok);border-radius:14px;padding:16px;margin-top:12px}
+.res-donde .grande{font-size:22px;font-weight:800;line-height:1.2;margin-top:4px}
+details{margin-top:22px}summary{cursor:pointer;font-weight:700;min-height:32px}
+.hidden{display:none!important}
+footer{max-width:680px;margin:0 auto;padding:0 14px 30px;font-size:13px;color:var(--mute)}
+@media (prefers-reduced-motion:reduce){#guia{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ubica tu libro</h1>
+  <p>CRAI · Universidad Autónoma de Occidente</p>
+</header>
+<main>
+  <div class="seg" role="tablist">
+    <button role="tab" id="tabB" aria-selected="true" aria-controls="pB">Buscar un libro</button>
+    <button role="tab" id="tabD" aria-selected="false" aria-controls="pD">¿Dónde va este libro?</button>
+  </div>
+
+  <section id="pB" role="tabpanel" aria-labelledby="tabB">
+    <label for="q">Escribe el título, una palabra del título o la signatura</label>
+    <input type="search" id="q" placeholder="Ej.: cien años de soledad  ·  863 G216c" autocomplete="off" enterkeyhint="search">
+    <div class="estado" id="estado" aria-live="polite">Cargando el catálogo…</div>
+    <div id="res"></div>
+  </section>
+
+  <section id="pD" role="tabpanel" aria-labelledby="tabD" class="hidden">
+    <p style="margin:0 0 8px">Apunta la cámara a la <b>etiqueta del lomo</b> del libro que tienes en la mano y te decimos en qué piso y estantería va.</p>
+    <div class="fila">
+      <button class="btn pri" id="btnCam">Abrir cámara</button>
+      <button class="btn" id="btnOri">Etiqueta vertical</button>
+    </div>
+    <div id="cam"><video id="vid" playsinline muted class="hidden"></video><div id="guia"></div><div id="camoff">Encierra una sola etiqueta en el marco amarillo.</div></div>
+    <div class="fila" style="margin-top:12px">
+      <div style="flex:3 1 0"><label for="sigM">O escribe la signatura de la etiqueta</label><input type="text" id="sigM" placeholder="Ej.: 330.122 R347t" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <button class="btn" id="btnSigM" style="flex:0 0 auto;align-self:end">Ver dónde va</button>
+    </div>
+    <div class="estado" id="estD" aria-live="polite"></div>
+    <div id="resD"></div>
+  </section>
+
+  <details>
+    <summary>¿Cómo leer la signatura del lomo?</summary>
+    <p>La etiqueta tiene dos partes. Primero un <b>número</b> (por ejemplo <b>330.122</b>) que indica el tema: los libros van de menor a mayor, y los decimales se leen como decimales (330.12 va antes que 330.2). Luego una <b>letra con números</b> (por ejemplo <b>R347t</b>) que corresponde al autor: dentro del mismo número, van en orden alfabético y luego numérico. Si ves <b>e.2</b> o <b>v.1</b>, es el ejemplar o el volumen.</p>
+    <p>Si no estás seguro de dónde va un libro que consultaste, déjalo en el carro de devolución del piso: el equipo del CRAI lo ubicará.</p>
+  </details>
+</main>
+<footer>Ubicaciones tomadas del catálogo Koha del CRAI (corte <span id="corte">—</span>). Para saber si un libro está prestado, consulta el catálogo en línea o pregunta en el mostrador.</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+/*MATCH-START*/
+// ---- Motor de cruce signatura -> código de barras (archivo maestro de Koha) ----
+const Motor = (() => {
+  // columnas del maestro (TSV): barcode, callnumber, copy, enum, location, ccode, itype, lost, withdrawn, notforloan, year, title
+  let filas = [];            // objetos ítem
+  let porCodigo = new Map(); // barcode -> ítem
+  let porUbic = new Map();   // location -> {grupos: Map(clave -> [ítems]), porClase: Map(clase3 -> [claves])}
+  let meta = { fecha: '', total: 0 };
+
+  const normCN = s => String(s || '').toUpperCase().replace(/[\/\\|_]/g, ' ').replace(/\s+/g, '').replace(/,/g, '.');
+  function parseCopia(copy, en) {
+    const t = (String(copy || '') + ' ' + String(en || '')).toUpperCase();
+    const e = t.match(/E\s*\.?\s*(\d{1,3})/); const v = t.match(/V\s*\.?\s*(\d{1,3})/);
+    return { e: e ? +e[1] : null, v: v ? +v[1] : null };
+  }
+  // orden aproximado Dewey + Cutter, para detectar desorden
+  function claveOrden(cn) {
+    const s = String(cn || '').toUpperCase().trim();
+    // prefijo de colección opcional (C, R, T, AU...) + número Dewey + Cutter
+    const m = s.match(/^([A-Z]{0,4})\s*(\d{1,3})(?:\.(\d+))?\s*(.*)$/);
+    if (!m) return '~' + s;
+    const num = m[2].padStart(3, '0') + '.' + (m[3] || '').padEnd(12, '0');
+    return (m[1] ? m[1] + ' ' : ' ') + num + ' ' + m[4].replace(/\s+/g, ' ');
+  }
+
+  function cargar(tsv) {
+    filas = []; porCodigo = new Map(); porUbic = new Map();
+    const lineas = tsv.split(/\r?\n/);
+    let i0 = 0;
+    if (lineas[0] && lineas[0].startsWith('#')) { const m = lineas[0].match(/fecha=([^\s;]+)/); meta.fecha = m ? m[1] : ''; i0 = 1; }
+    if (lineas[i0] && /^barcode\t/i.test(lineas[i0])) i0++;
+    for (let i = i0; i < lineas.length; i++) {
+      const c = lineas[i].split('\t'); if (c.length < 12 || !c[0]) continue;
+      const it = { codigo: c[0], cn: c[1], copia: c[2], enum: c[3], ubic: c[4] || '(sin ubicación)', ccode: c[5], tipo: c[6],
+        perdido: c[7] !== '0' && c[7] !== '', retirado: c[8] !== '0' && c[8] !== '', nopres: c[9], anio: c[10], titulo: c[11] };
+      const pc = parseCopia(it.copia, it.enum); it.e = pc.e; it.v = pc.v;
+      it.clave = normCN(it.cn);
+      filas.push(it); porCodigo.set(it.codigo.toUpperCase(), it);
+      if (!it.clave) continue;
+      let u = porUbic.get(it.ubic); if (!u) { u = { grupos: new Map(), porClase: new Map() }; porUbic.set(it.ubic, u); }
+      let g = u.grupos.get(it.clave); if (!g) { g = []; u.grupos.set(it.clave, g); const k3 = (it.clave.match(/\d{3}/) || [it.clave.slice(0, 3)])[0]; if (!u.porClase.has(k3)) u.porClase.set(k3, []); u.porClase.get(k3).push(it.clave); }
+      g.push(it);
+    }
+    meta.total = filas.length;
+    return meta;
+  }
+  const ubicaciones = () => [...porUbic.entries()].map(([k, v]) => [k, [...v.grupos.values()].reduce((s, g) => s + g.length, 0)]).sort((a, b) => b[1] - a[1]);
+  const buscarCodigo = c => porCodigo.get(String(c || '').toUpperCase()) || null;
+
+  // ---- lectura OCR ----
+  // arregla confusiones típicas dentro de la parte numérica
+  const aDig = s => s.replace(/[OQD]/g, '0').replace(/[IL|!]/g, '1');
+  function lecturaDe(texto) {
+    let t = String(texto || '').toUpperCase().replace(/[“”"'`´]/g, '').replace(/[\/\\|_]/g, ' ').replace(/,/g, '.').replace(/[ \t]+/g, ' ');
+    const plano = t.replace(/\s+/g, '');
+    // ejemplar, volumen, año: buscar en el texto con espacios
+    const e = t.match(/\b(?:E|EJ|C)\s*\.\s*([0-9OIL]{1,3})\b/) || t.match(/(?:^|\s)(?:E|EJ)\s?([0-9IL]{1,2})(?=\s|$)/);
+    const v = t.match(/\b(?:V|VOL|T)\s*\.\s*([0-9OIL]{1,3})\b/);
+    const anio = t.match(/\b(1[89]\d\d|20[0-4]\d)\b/);
+    return { t, plano, e: e ? +aDig(e[1]) : null, v: v ? +aDig(v[1]) : null, anio: anio ? anio[1] : null };
+  }
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let best = i;
+      for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); if (cur[j] < best) best = cur[j]; }
+      if (best > max) return max + 1; prev = cur;
+    }
+    return prev[b.length];
+  }
+  // forma canónica: iguala caracteres que el OCR confunde (O/0, I/L/1, S/5, B/8, Z/2, G/6)
+  const canon = s => s.replace(/[OQD]/g, '0').replace(/[IL|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/G/g, '6');
+  function clavesEn(lec, ubic) {
+    const u = porUbic.get(ubic); if (!u) return { exactas: [], cercanas: [] };
+    const plano = lec.plano, pc = canon(plano);
+    const clases = new Set((pc.match(/\d{3}/g) || []));
+    const cand = []; for (const k3 of clases) for (const cl of (u.porClase.get(k3) || [])) cand.push(cl);
+    const masLargas = a => a.filter(x => !a.some(y => y !== x && y.includes(x)));
+    // 1) idéntica en el texto leído
+    let ex = masLargas(cand.filter(cl => plano.includes(cl)));
+    // 2) idéntica salvo confusiones típicas del OCR
+    if (!ex.length) ex = masLargas(cand.filter(cl => pc.includes(canon(cl))));
+    // 3) el OCR no leyó la letra de colección (C863..., R030...): comparar sin el prefijo
+    const sinPref = cl => cl.replace(/^[A-Z]+(?=\d)/, '');
+    if (!ex.length) ex = masLargas(cand.filter(cl => sinPref(cl) !== cl && (plano.includes(sinPref(cl)) || pc.includes(canon(sinPref(cl))))));
+    let cercanas = [];
+    if (!ex.length) {
+      for (const cl of cand) {
+        const cc = canon(sinPref(cl)), k3 = (cc.match(/\d{3}/) || [cc.slice(0, 3)])[0]; let pos = pc.indexOf(k3), best = 9;
+        while (pos >= 0) { best = Math.min(best, lev(pc.slice(pos, pos + cc.length), cc, 2), lev(pc.slice(pos, pos + cc.length + 1), cc, 2), lev(pc.slice(pos, pos + cc.length - 1), cc, 2)); pos = pc.indexOf(k3, pos + 1); }
+        if (best <= 2) cercanas.push([cl, best]);
+      }
+      cercanas.sort((a, b) => a[1] - b[1]); const d0 = cercanas.length ? cercanas[0][1] : 9;
+      cercanas = cercanas.filter(x => x[1] === d0).slice(0, 6).map(x => x[0]);
+      return { exactas: ex, cercanas, dist: d0 };
+    }
+    return { exactas: ex, cercanas, dist: 0 };
+  }
+  function filtrar(g, lec) {
+    if (lec.anio && g.some(x => x.anio === lec.anio) && g.some(x => x.anio !== lec.anio)) g = g.filter(x => x.anio === lec.anio);
+    if (lec.v != null && g.some(x => x.v != null)) { const gv = g.filter(x => x.v === lec.v); if (gv.length) g = gv; }
+    if (lec.e != null) { const ge = g.filter(x => (x.e == null ? 1 : x.e) === lec.e); if (ge.length) g = ge; }
+    return g;
+  }
+  // misma signatura registrada en Koha con otra ubicación
+  function enOtras(lec, ubic) {
+    const out = [];
+    for (const [k, u] of porUbic) { if (k === ubic) continue; const { exactas } = clavesEn(lec, k); for (const cl of exactas) out.push(...filtrar(u.grupos.get(cl).slice(), lec)); }
+    return out;
+  }
+  // resuelve una lectura a ítems; registrados = Set de códigos ya leídos
+  function resolver(texto, ubic, registrados) {
+    const lec = lecturaDe(texto);
+    const u = porUbic.get(ubic);
+    if (!u) return { estado: 'sin-maestro', lec };
+    const { exactas, cercanas, dist } = clavesEn(lec, ubic);
+    if (!exactas.length) {
+      const otras = enOtras(lec, ubic);
+      if (otras.length) return { estado: 'dudoso', tipo: 'otra-ubic', motivo: `En Koha esta signatura no figura en ${ubic}, sino en: ${[...new Set(otras.map(x => x.ubic))].join(', ')}`, lec, opciones: otras };
+      if (!cercanas.length) return { estado: 'nada', lec };
+      const opciones = filtrar(cercanas.flatMap(cl => u.grupos.get(cl)), lec);
+      return { estado: 'dudoso', tipo: 'cercana', dist, claves: cercanas, motivo: 'Signatura parecida, no idéntica', lec, opciones };
+    }
+    if (exactas.length > 1) return { estado: 'dudoso', tipo: 'varias', motivo: 'Se leyeron varias signaturas', lec, opciones: exactas.flatMap(cl => u.grupos.get(cl)) };
+    const g0 = u.grupos.get(exactas[0]);
+    if (lec.e != null && !g0.some(x => (x.e == null ? 1 : x.e) === lec.e)) { const otras = enOtras(lec, ubic).filter(x => (x.e == null ? 1 : x.e) === lec.e); return { estado: 'dudoso', tipo: otras.length ? 'otra-ubic' : 'sin-ejemplar', motivo: otras.length ? `El ejemplar e.${lec.e} figura en Koha en ${otras.map(x => x.ubic + (x.perdido ? ' (perdido)' : '')).join(', ')}` : `Koha no tiene el ejemplar e.${lec.e} de esta signatura en ${ubic}`, lec, opciones: otras.length ? otras : g0 }; }
+    if (lec.v != null && g0.some(x => x.v != null) && !g0.some(x => x.v === lec.v)) return { estado: 'dudoso', tipo: 'sin-ejemplar', motivo: `Koha no tiene el volumen v.${lec.v} de esta signatura en ${ubic}`, lec, opciones: g0 };
+    const g = filtrar(g0.slice(), lec);
+    if (g.length === 1) return { estado: 'ok', item: g[0], lec };
+    const libres = g.filter(x => !registrados.has(x.codigo));
+    return { estado: 'ambiguo', motivo: lec.e == null ? 'La etiqueta no muestra ejemplar y hay varias copias' : 'Hay varias copias con los mismos datos', lec, opciones: g, libres };
+  }
+  // ítems de una ubicación entre dos signaturas (incluidas), en orden de estantería
+  function rango(ubic, desde, hasta) {
+    const u = porUbic.get(ubic); if (!u) return [];
+    const a = claveOrden(desde), b = claveOrden(hasta) + '\uffff';
+    const out = []; for (const g of u.grupos.values()) for (const it of g) { const k = claveOrden(it.cn); if (k >= a && k <= b) out.push(it); }
+    return out.sort((x, y) => { const kx = claveOrden(x.cn), ky = claveOrden(y.cn); return kx < ky ? -1 : kx > ky ? 1 : ((x.v || 0) - (y.v || 0)) || ((x.e || 0) - (y.e || 0)); });
+  }
+  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, get meta() { return meta; }, get total() { return filas.length; } };
+})();
+/*MATCH-END*/
+
+</script>
+<script>
+{
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ZONAS=['Obras generales, informática y bibliotecología','Filosofía y psicología','Religión','Ciencias sociales, economía y derecho','Lenguas','Ciencias naturales y matemáticas','Tecnología, ingeniería y medicina','Artes, deportes y recreación','Literatura','Historia y geografía'];
+function zona(cn){const m=String(cn||'').match(/(\d)\d\d/);if(!m)return '';const d=+m[1];return `${d}00 · ${ZONAS[d]}`}
+const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9. ]+/g,' ').replace(/\s+/g,' ').trim();
+const normCN=s=>String(s||'').toUpperCase().replace(/[\/\\|_]/g,' ').replace(/\s+/g,'');
+
+// ---------- datos ----------
+let fichas=[];   // {cn,titulo,anio,ubic,copias,tn,cnn}
+let mapa=[];     // [{ubic,est,ent,desde,hasta}] — se llena con el inventario
+async function cargar(){
+  try{
+    const r=await fetch('catalogo.tsv',{cache:'no-cache'});const txt=await r.text();
+    Motor.cargar(txt);
+    const L=txt.split('\n');const m=(L[0]||'').match(/fecha=(\S+)/);if(m)$('corte').textContent=m[1];
+    for(const l of L){const c=l.split('\t');if(c.length<12||!/^P\d+$/.test(c[0]))continue;fichas.push({cn:c[1],ubic:c[4],anio:c[10],titulo:c[11],copias:+(c[12]||1),tn:norm(c[11]),cnn:normCN(c[1])})}
+    try{const rm=await fetch('mapa.json',{cache:'no-cache'});if(rm.ok)mapa=await rm.json()}catch(e){}
+    $('estado').textContent=`${fichas.length.toLocaleString('es-CO')} títulos y ediciones disponibles para buscar.`;
+    if($('q').value)buscar();
+  }catch(e){$('estado').textContent='No se pudo cargar el catálogo. Revisa tu conexión e inténtalo de nuevo.'}
+}
+function estanteria(ubic,cn){
+  const k=Motor.claveOrden(cn);
+  const e=mapa.find(x=>x.ubic===ubic&&k>=Motor.claveOrden(x.desde)&&k<=Motor.claveOrden(x.hasta)+'￿');
+  return e?`Estantería ${e.est}${e.ent?' · entrepaño '+e.ent:''}`:'';
+}
+
+// ---------- tarjetas ----------
+function tarjeta(grupo){
+  const f=grupo[0];
+  const ubics=grupo.map(g=>{const est=estanteria(g.ubic,g.cn);return `<li><b>Dónde</b><span>${esc(g.ubic)}${est?' · '+esc(est):''}</span></li>`}).join('');
+  const total=grupo.reduce((s,g)=>s+g.copias,0);
+  return `<article class="card"><h3>${esc(f.titulo||'(sin título)')} <span class="anio">${f.anio?'· '+esc(f.anio):''}</span></h3>
+    <div class="etq" aria-label="Signatura">${esc(f.cn)}</div>
+    <ul class="ruta">${ubics}<li><b>Zona</b><span>${esc(zona(f.cn)||'—')}</span></li><li><b>Ejemplares</b><span>${total}</span></li></ul>
+    ${grupo.some(g=>!estanteria(g.ubic,g.cn))?'<p class="note" style="margin:8px 0 0">Busca en ese piso la zona indicada y sigue el orden de las etiquetas hasta encontrar esta signatura.</p>':''}
+  </article>`;
+}
+function agrupar(lista){const g=new Map();for(const f of lista){const k=f.cnn+'|'+f.anio+'|'+f.tn;if(!g.has(k))g.set(k,[]);g.get(k).push(f)}return [...g.values()]}
+
+// ---------- buscar ----------
+let tBus=null;
+function buscar(){
+  const q=$('q').value.trim();
+  if(!fichas.length)return;
+  if(q.length<2){$('res').innerHTML='';$('estado').textContent=`${fichas.length.toLocaleString('es-CO')} títulos y ediciones disponibles para buscar.`;return}
+  let lista;
+  if(/^\d{3}/.test(q)){const k=normCN(q);lista=fichas.filter(f=>f.cnn.startsWith(k))}
+  else{const ws=norm(q).split(' ').filter(w=>w.length>1);lista=fichas.filter(f=>ws.every(w=>f.tn.includes(w)));
+    const nq=norm(q);lista.sort((a,b)=>(b.tn.startsWith(nq)-a.tn.startsWith(nq))||a.tn.length-b.tn.length)}
+  const grupos=agrupar(lista);
+  $('estado').textContent=grupos.length?`${grupos.length>40?'Más de 40':grupos.length} resultado${grupos.length===1?'':'s'}${grupos.length>40?': escribe más palabras para afinar.':'.'}`:'No encontramos ese libro. Prueba con otra palabra del título o revisa la ortografía.';
+  $('res').innerHTML=grupos.slice(0,40).map(tarjeta).join('');
+}
+$('q').addEventListener('input',()=>{clearTimeout(tBus);tBus=setTimeout(buscar,200)});
+
+// ---------- ¿dónde va? ----------
+function dondeVa(texto,fuente){
+  texto=String(texto||'').replace(/\b(?:e|ej|c|v|vol)\s*\.\s*[0-9oil]{1,3}\b/gi,' ');   // el público no necesita ejemplar ni volumen
+  const ubics=Motor.ubicaciones().map(x=>x[0]);let hall=[];
+  for(const u of ubics){const r=Motor.resolver(texto,u,new Set());if(r.estado==='ok')hall=hall.concat([r.item]);else if(r.estado==='ambiguo')hall=hall.concat(r.opciones)}
+  if(!hall.length){if(fuente==='manual')$('estD').textContent='No encontramos esa signatura. Revisa que esté completa (número y letra), por ejemplo 330.122 R347t.';return false}
+  const vistos=new Set();const items=hall.filter(x=>{const k=x.ubic+'|'+x.cn;if(vistos.has(k))return false;vistos.add(k);return true});
+  $('resD').innerHTML=`<div class="res-donde"><div class="note">Este libro va en</div>${items.map(x=>{const est=estanteria(x.ubic,x.cn);return `<div class="grande">${esc(x.ubic)}${est?' · '+esc(est):''}</div>`}).join('')}
+    <div class="etq">${esc(items[0].cn)}</div><p style="margin:10px 0 0"><b>${esc(items[0].titulo||'')}</b></p>
+    <ul class="ruta"><li><b>Zona</b><span>${esc(zona(items[0].cn)||'—')}</span></li></ul>
+    <p class="note" style="margin:10px 0 0">Si no estás seguro del lugar exacto, déjalo en el carro de devolución de ese piso.</p></div>`;
+  $('estD').textContent='';return true;
+}
+$('btnSigM').onclick=()=>{const v=$('sigM').value.trim();if(v)dondeVa(v,'manual')};
+$('sigM').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('btnSigM').click()}});
+
+// cámara + lectura de etiqueta
+let stream=null,worker=null,activo=false,ocupado=false,ori='h',ultGiro=1;
+const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+function recorte(giro){const v=$('vid'),W=v.videoWidth,H=v.videoHeight;if(!W)return null;
+  const r=ori==='h'?{x:.06,y:.34,w:.88,h:.32}:{x:.34,y:.06,w:.32,h:.88};const sx=r.x*W,sy=r.y*H,sw=r.w*W,sh=r.h*H;const k=Math.min(2,1100/Math.max(sw,sh));const dw=Math.round(sw*k),dh=Math.round(sh*k);
+  if(giro){cv.width=dh;cv.height=dw;cx.save();cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2);cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);cx.restore()}else{cv.width=dw;cv.height=dh;cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh)}
+  const im=cx.getImageData(0,0,cv.width,cv.height),d=im.data;let mn=255,mx=0;for(let i=0;i<d.length;i+=4){const g=.3*d[i]+.59*d[i+1]+.11*d[i+2];d[i]=g;if(g<mn)mn=g;if(g>mx)mx=g}
+  const f=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*f));d[i]=d[i+1]=d[i+2]=g}cx.putImageData(im,0,0);return cv}
+async function ciclo(){
+  if(!activo)return;if(ocupado){setTimeout(ciclo,100);return}ocupado=true;
+  try{const giros=ori==='h'?[0]:(ultGiro===-1?[-1,1]:[1,-1]);
+    for(const g of giros){const c=recorte(g);if(!c)break;const {data}=await worker.recognize(c);
+      if(dondeVa(data.text,'cam')){if(g)ultGiro=g;$('guia').classList.add('verde');try{navigator.vibrate&&navigator.vibrate(80)}catch(e){}await apagar();$('resD').scrollIntoView({behavior:'smooth',block:'nearest'});break}}
+  }catch(e){$('estD').textContent='No se pudo leer: '+(e.message||e)}
+  ocupado=false;if(activo)setTimeout(ciclo,30);
+}
+async function camara(){
+  if(activo){await apagar();return}
+  if(!window.isSecureContext){$('estD').textContent='La cámara solo funciona si la página se abre con https.';return}
+  if(!window.Tesseract){$('estD').textContent='No cargó el lector. Revisa tu conexión.';return}
+  try{$('estD').textContent='Preparando la cámara…';
+    if(!worker){worker=await Tesseract.createWorker('eng',1);await worker.setParameters({tessedit_char_whitelist:'0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/- ',tessedit_pageseg_mode:'6'})}
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});
+  }catch(e){$('estD').textContent='No pudimos abrir la cámara. Permite el acceso o escribe la signatura abajo.';return}
+  const v=$('vid');v.srcObject=stream;v.classList.remove('hidden');await v.play();
+  $('guia').style.display='block';$('guia').classList.remove('verde');$('camoff').style.display='none';$('resD').innerHTML='';
+  activo=true;$('btnCam').textContent='Cerrar cámara';$('estD').textContent='Leyendo… mantén la etiqueta quieta dentro del marco.';ciclo();
+}
+async function apagar(){activo=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('vid').classList.add('hidden');$('camoff').style.display='';$('btnCam').textContent='Abrir cámara';if(!$('resD').innerHTML)$('estD').textContent=''}
+$('btnCam').onclick=camara;
+$('btnOri').onclick=()=>{ori=ori==='h'?'v':'h';$('guia').className=ori==='v'?'v':'';$('btnOri').textContent=ori==='h'?'Etiqueta vertical':'Etiqueta horizontal'};
+
+// pestañas
+function tab(cual){const b=cual==='B';$('tabB').setAttribute('aria-selected',b);$('tabD').setAttribute('aria-selected',!b);$('pB').classList.toggle('hidden',!b);$('pD').classList.toggle('hidden',b);if(b&&activo)apagar();location.hash=b?'':'donde-va'}
+$('tabB').onclick=()=>tab('B');$('tabD').onclick=()=>tab('D');
+if(location.hash==='#donde-va')tab('D');
+cargar();
+window.__u={buscar:q=>{$('q').value=q;buscar();return $('estado').textContent},donde:t=>dondeVa(t,'manual')};
+}
+</script>
+</body>
+</html>
