@@ -152,7 +152,8 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
       <div><label for="desde">Desde signatura</label><input type="text" id="desde" placeholder="330.122 R347t" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div><label for="hasta">Hasta signatura</label><input type="text" id="hasta" placeholder="330.15 H669s" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
     </div>
-    <p class="note" style="margin:4px 0 0">Si dejas el rango vacío, se arma solo con la primera y la última signatura que leas.</p>
+    <div style="margin-top:8px"><label for="conteo">Libros contados en el estante (opcional)</label><input type="text" id="conteo" inputmode="numeric" placeholder="Ej.: 38" autocomplete="off" style="max-width:180px"></div>
+    <p class="note" style="margin:4px 0 0">Si cuentas los libros, el escáner sabe cuántos debe leer y te avisa cuáles faltan. Si dejas el rango vacío, se arma solo con la primera y la última signatura leídas.</p>
     <div class="row" style="margin-top:8px">
       <button class="pri" id="btnFijar">Usar esta estantería</button>
       <div><label for="lista">O retomar uno guardado</label><select id="lista"></select></div>
@@ -216,6 +217,11 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
   <div id="pista" class="pista hidden" aria-live="polite"></div>
   <label class="sw"><input type="checkbox" id="auto" checked> Registro automático (sin confirmar uno por uno; los casos dudosos quedan marcados para revisar)</label>
 
+  <section class="prog" id="pConteo" aria-label="Avance según el conteo" style="display:none">
+    <div class="cifras"><span>Leídos <b id="cLeidos" style="font-size:26px">0</b> de <b id="cTotal" style="font-size:26px">0</b> libros contados</span><span id="cEstado" style="font-weight:700"></span></div>
+    <div class="barra"><i id="cBarra"></i></div>
+    <div id="cNota" class="note"></div>
+  </section>
   <section class="prog" aria-label="Avance del rango">
     <div class="cifras"><span>Rango: <b id="pRango">—</b></span></div>
     <div class="barra"><i id="pBarra"></i></div>
@@ -613,7 +619,7 @@ function render(){
   $('lista').innerHTML='<option value="">— elegir —</option>'+ids.map(id=>{const x=st.tramos[id];return `<option value="${esc(id)}"${id===st.cur?' selected':''}>${esc(nombreT(x))} (${x.items.length})${x.enviado?' ✓':''}</option>`}).join('');
   if(t){if([...$('ubic').options].some(o=>o.value===t.ubic))$('ubic').value=t.ubic;$('est').value=t.est;$('ent').value=t.ent}
   const on=!!t;['btnUndo','btnSend','btnAdd','manual','btnClear','btnDel','btnRangoLeido','btnVerFaltan'].forEach(i=>$(i).disabled=!on);
-  if(t){$('desde').value=t.desde||'';$('hasta').value=t.hasta||''}
+  if(t){$('desde').value=t.desde||'';$('hasta').value=t.hasta||'';$('conteo').value=t.conteo||''}
   pintarAvance();
 }
 function rangoDe(t){
@@ -641,6 +647,16 @@ function pintarAvance(){
   $('pRev').textContent=t?t.items.filter(x=>(x.flags||[]).length).length:0;
   pintarResumen();
   $('pBarra').style.width=esp.length?Math.round(100*dentro/esp.length)+'%':'0';
+  // avance según el conteo físico del entrepaño
+  const pc=$('pConteo');
+  if(t&&t.conteo){pc.style.display='block';const L=t.items.length,N=t.conteo,quedan=N-L;
+    $('cLeidos').textContent=L;$('cTotal').textContent=N;$('cBarra').style.width=Math.min(100,Math.round(100*L/N))+'%';
+    const e=$('cEstado');
+    if(quedan===0){e.textContent='Entrepaño completo';e.style.color='var(--ok)'}
+    else if(quedan>0){e.textContent=`Faltan ${quedan} por leer`;e.style.color='var(--warn)'}
+    else{e.textContent=`Leíste ${-quedan} de más`;e.style.color='var(--bad)'}
+    $('cNota').textContent=quedan>0?(falt.length?`Los libros sin leer están entre los ${falt.length} de “Ver faltantes”${falt.length>quedan?`: en el estante solo hay ${quedan}; los demás probablemente no están.`:'.'} Léelos con el marco amarillo.`:'Hay libros en el estante que no están en el rango de Koha: pueden estar mal ubicados. Léelos con el marco amarillo.'):quedan<0?'Revisa el conteo o si hay libros de otro rango en este entrepaño (salen marcados “fuera del rango”).':(esp.length>L?`Koha esperaba ${esp.length}; los ${falt.length} de “Ver faltantes” no están en el estante.`:'');
+  }else pc.style.display='none';
   $('faltan').innerHTML=falt.slice(0,300).map(x=>`<li><span class="n"></span><div class="d"><code>${esc(sigDe(x))}</code><small>${esc(x.codigo)} · ${esc(x.titulo||'')}</small></div></li>`).join('')||'<li class="note" style="border:0">No falta ningún ítem del rango.</li>';
 }
 function msg(t,cls){const m=$('msg');m.textContent=t;m.className=cls||''}
@@ -670,7 +686,8 @@ function registrar(it,extra){
   const hacer=()=>{
     if(otro&&otro!==st.cur){const o=st.tramos[otro];o.items=o.items.filter(x=>x.codigo!==it.codigo);o.enviado=null}
     t.enviado=null;t.items.push({codigo:it.codigo,cn:it.cn,copia:it.copia,titulo:it.titulo,flags});save();render();ultimoReg=it.codigo;
-    msg(`Registrado: ${sigDe(it)}${flags.length?' · '+flags.join(' · '):''}`,flags.length?'dup':'ok');sonido(true)};
+    msg(`Registrado: ${sigDe(it)}${flags.length?' · '+flags.join(' · '):''}`,flags.length?'dup':'ok');sonido(true);
+    if(t.conteo&&t.items.length===t.conteo)setTimeout(()=>{msg(`¡Entrepaño completo! Leíste los ${t.conteo} libros contados.`,'ok');try{navigator.vibrate&&navigator.vibrate([100,60,100,60,300])}catch(e){}},700)};
   if(otro&&otro!==st.cur){pausa=true;sonido(false);preguntar(`${sigDe(it)} (${it.codigo}) ya está registrado en:\n${nombreT(st.tramos[otro])}\n\n¿Moverlo a este entrepaño? Hazlo solo si el libro de verdad está aquí.`,()=>{hacer();pausa=false},'Mover aquí',()=>{pausa=false;msg('No se movió.','dup')});return false}
   hacer();return true;
 }
@@ -739,7 +756,10 @@ async function bucle(i){
     if(c){const {data}=await workers[i].recognize(c);
       if(activo&&!pausa&&!bloqueando){
         const ub=busca?(T()?T().ubic:busca.ubic):T().ubic;
-        const r=Motor.resolver(data.text,ub,new Set(busca?[]:T().items.map(x=>x.codigo)));
+        let r=Motor.resolver(data.text,ub,new Set(busca?[]:T().items.map(x=>x.codigo)));
+        // si no reconoció la signatura completa, prueba solo con el autor entre los libros pendientes del rango
+        if(r.estado==='nada'&&!busca&&T().desde&&T().hasta){const er=Motor.enRango([{t:data.text,x:.5}],T().ubic,T().desde,T().hasta,new Set(T().items.map(x=>x.codigo)));
+          if(er.encontrados.length===1){const e=er.encontrados[0];r={estado:e.seguro&&!e.nota?'ok':'dudoso',tipo:'rango',item:e.item,opciones:[e.item],nota:e.nota,lec:Motor.lecturaDe(data.text)}}}
         if(data.text.trim())$('ocrtxt').textContent=data.text.trim().slice(0,120);
         if(r.estado!=='nada'){vacios=0;procesar(r)}else{ultimaClave='';if(++vacios>=4)bloqueoSig=''}   // se libera cuando la cámara pasa a otro libro
       }}
@@ -781,6 +801,7 @@ function automatico(r){
 
     return;
   }
+  if(r.tipo==='rango'){registrar(r.item,r.nota?r.nota.split('; '):['Lectura aproximada: revisar signatura']);return}
   if(r.tipo==='varias'){msg('Hay varias etiquetas en el marco: encuadra una sola.','dup');return}
   if(r.tipo==='sin-ejemplar'){msg(`${r.motivo}. No se registró.`,'bad');sonido(false);return}
   if(r.tipo==='cercana'){
@@ -1005,7 +1026,7 @@ function fijar(){
   if(!st.tramos[id])st.tramos[id]={ubic:u,est:e,ent:n,items:[],enviado:null,creado:new Date().toISOString()};
   const d=$('desde').value.trim(),h=$('hasta').value.trim();
   if(d&&h&&Motor.claveOrden(d)>Motor.claveOrden(h)){msg('El rango está invertido: “Desde” debe ir antes que “Hasta”.','bad');sonido(false);return}
-  st.tramos[id].desde=d;st.tramos[id].hasta=h;
+  st.tramos[id].desde=d;st.tramos[id].hasta=h;const cn=parseInt($('conteo').value,10);st.tramos[id].conteo=cn>0?cn:null;
   st.cur=id;save();render();ultimaClave='';ultimoReg='';
   if(d&&h&&hayMaestro)msg(`${nombreT(st.tramos[id])}: ${esperados(st.tramos[id]).length} ítems esperados entre ${d} y ${h}.`,'ok');else
   msg((st.tramos[id].items.length?'Retomaste: ':'Entrepaño listo: ')+nombreT(st.tramos[id]),'ok');
@@ -1013,7 +1034,7 @@ function fijar(){
 function textoClaude(t){
   const its=t.items,ord=its.filter(x=>x.cn).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);
   const r=rangoDe(t),esp=esperados(t),leidos=new Set(its.map(x=>x.codigo)),falt=esp.filter(x=>!leidos.has(x.codigo));
-  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango: ${r?r.d+' – '+r.h+(r.auto?' (según lo leído)':''):'sin rango'}`,`Leídos: ${its.length} · Esperados en el rango: ${esp.length} · Faltan: ${falt.length} ejemplares · Títulos sin leer: ${titulosSinLeer(esp,its)}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
+  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango: ${r?r.d+' – '+r.h+(r.auto?' (según lo leído)':''):'sin rango'}`,`Leídos: ${its.length}${t.conteo?` de ${t.conteo} contados en el estante`:''} · Esperados en el rango: ${esp.length} · Faltan: ${falt.length} ejemplares · Títulos sin leer: ${titulosSinLeer(esp,its)}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
     ...its.map(x=>`${x.codigo} | ${sigDe(x)}${x.flags&&x.flags.length?' | '+x.flags.join('; '):''}`),
     ...(falt.length>400?[`Faltantes del rango: ${falt.length}. Son demasiados para listarlos; revisa que el rango corresponda a esta estantería.`]:falt.length?[`Faltantes del rango (código | signatura | título):`,...falt.map(x=>`${x.codigo} | ${sigDe(x)} | ${x.titulo||''}`)]:[])].join('\n');
 }
@@ -1028,7 +1049,7 @@ $('quien').addEventListener('change',()=>{try{localStorage.setItem('crai-quien',
 function sello(){const d=new Date();return d.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'})}
 // lista .txt: solo los libros leídos, con signatura y código, en orden de estantería
 function listaLeidos(t){const its=t.items.slice().sort((a,b)=>{const x=Motor.claveOrden(a.cn),y=Motor.claveOrden(b.cn);return x<y?-1:x>y?1:((a.copia||'')<(b.copia||'')?-1:1)});
-  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Libros leídos: ${its.length}`,`Signatura | Código de barras`,...its.map(x=>`${sigDe(x)} | ${x.codigo}`)].join('\n')}
+  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Libros leídos: ${its.length}${t.conteo?` de ${t.conteo} contados`:''}`,`Signatura | Código de barras`,...its.map(x=>`${sigDe(x)} | ${x.codigo}`)].join('\n')}
 function informe(t){return listaLeidos(t)+`\n\nGenerado: ${sello()}\n`}
 function nombreArchivo(t,tipo){return archivo(`${tipo}_${nombreT(t)}_${quien()||'sin-nombre'}`)}
 function pedirNombre(){if(quien())return true;msg('Escribe tu nombre en “Quién escanea” antes de generar la lista.','bad');sonido(false);$('quien').focus();$('quien').scrollIntoView({block:'center'});return false}
