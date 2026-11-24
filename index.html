@@ -901,14 +901,16 @@ const quien=()=>($('quien').value||'').trim();
 try{$('quien').value=localStorage.getItem('crai-quien')||''}catch(e){}
 $('quien').addEventListener('change',()=>{try{localStorage.setItem('crai-quien',quien())}catch(e){}});
 function sello(){const d=new Date();return d.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'})}
-function informe(t){return textoClaude(t)+`\n\nGenerado: ${sello()}\n`}
+// lista .txt: solo los libros leídos, con signatura y código, en orden de estantería
+function listaLeidos(t){const its=t.items.slice().sort((a,b)=>{const x=Motor.claveOrden(a.cn),y=Motor.claveOrden(b.cn);return x<y?-1:x>y?1:((a.copia||'')<(b.copia||'')?-1:1)});
+  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Libros leídos: ${its.length}`,`Signatura | Código de barras`,...its.map(x=>`${sigDe(x)} | ${x.codigo}`)].join('\n')}
+function informe(t){return listaLeidos(t)+`\n\nGenerado: ${sello()}\n`}
 function nombreArchivo(t,tipo){return archivo(`${tipo}_${nombreT(t)}_${quien()||'sin-nombre'}`)}
 function pedirNombre(){if(quien())return true;msg('Escribe tu nombre en “Quién escanea” antes de generar la lista.','bad');sonido(false);$('quien').focus();$('quien').scrollIntoView({block:'center'});return false}
 $('btnLista').onclick=()=>{const t=T();if(!t||!t.items.length){msg('Esta estantería no tiene libros leídos.','dup');return}if(!pedirNombre())return;const n=nombreArchivo(t,'lista');descargar(n,informe(t));msg('Descargado: '+n,'ok')};
 $('btnKoha').onclick=()=>{const t=T();if(!t||!t.items.length){msg('Esta estantería no tiene libros leídos.','dup');return}const n=nombreArchivo(t,'koha');descargar(n,t.items.map(x=>x.codigo).join('\n')+'\n');msg('Descargado: '+n+' (un código por línea, para Koha › Inventario)','ok')};
 $('btnTodas').onclick=()=>{const ids=Object.keys(st.tramos).filter(id=>st.tramos[id].items.length);if(!ids.length){msg('No hay estanterías con libros leídos.','dup');return}if(!pedirNombre())return;
-  const res=grupos().map(g=>{let l=0,e=0,f=0,ft=0;for(const id of g.ids){const c=cifras(st.tramos[id]);l+=c.leidos;e+=c.esp;f+=c.falt.length;ft+=c.ft}return `${g.ubic} · Estantería ${g.est}: leídos ${l}, esperados ${e}, faltan ${f} ejemplares, títulos sin leer ${ft}`});
-  const n=archivo(`lista_todas_${quien()}`);descargar(n,[`RESUMEN POR ESTANTERÍA`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()}`,`Generado: ${sello()}`,'',...res,'',...ids.map(id=>textoClaude(st.tramos[id]))].join('\n')+'\n');msg('Descargado: '+n,'ok')};
+  const n=archivo(`lista_todas_${quien()}`);descargar(n,ids.map(id=>listaLeidos(st.tramos[id])).join('\n\n')+`\n\nGenerado: ${sello()}\n`);msg('Descargado: '+n,'ok')};
 $('btnCompartir').onclick=async()=>{const t=T();if(!t||!t.items.length){msg('Esta estantería no tiene libros leídos.','dup');return}if(!pedirNombre())return;
   const n=nombreArchivo(t,'lista'),txt=informe(t);
   try{const f=new File([txt],n,{type:'text/plain'});
