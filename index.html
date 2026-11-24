@@ -99,6 +99,10 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 #dlg p{margin:0 0 14px;white-space:pre-line}
 #aviso{display:none;background:#fde9c8;color:#5c3800;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px}
 .hidden{display:none!important}
+#hallado{position:fixed;inset:0;background:#1f9d55;color:#fff;display:none;place-items:center;text-align:center;padding:24px;z-index:20}
+#hallado button{background:#fff;color:#1f6b3d;border:0;font-weight:700}
+.pista{font-size:22px;font-weight:800;text-align:center;padding:8px;border-radius:10px;margin-top:8px}
+.pista.adelante{background:#e3f0ff;color:#0b4a8b}.pista.atras{background:#fff0e0;color:#8a4b00}.pista.cerca{background:#e3f4ea;color:#145c33}
 @media (max-width:420px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.grid>div:first-child{grid-column:1/-1}.last .sig{font-size:19px}}
 @media (prefers-reduced-motion:reduce){#flash{transition:none}}
 </style>
@@ -146,6 +150,14 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <div class="tramoname" id="tramoname" aria-live="polite"></div>
   </section>
 
+  <section class="box" style="margin-top:10px" aria-labelledby="tb">
+    <h2 id="tb" style="margin-top:0">Buscar ejemplar perdido</h2>
+    <div class="row"><div style="flex:2 1 0"><label for="bQ">Signatura o código de barras</label><input type="text" id="bQ" placeholder="330.122 R347t e.2  ó  0042602" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <button class="pri" id="bGo" style="flex:0 0 auto">Buscar</button></div>
+    <div id="bObj" class="note" style="margin-top:8px"></div>
+    <button class="ghost hidden" id="bFin" style="margin-top:6px;width:100%">Terminar búsqueda y volver al inventario</button>
+  </section>
+
   <h2>2. Leer</h2>
   <div class="seg" role="group" aria-label="Qué leer">
     <button id="mSig" aria-pressed="true">Signatura del lomo</button>
@@ -170,6 +182,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 
   <div class="last"><div class="sig" id="lSig">—</div><div class="cnt"><b id="num">0</b><span>leídos aquí</span></div><div class="cod" id="lCod"></div><div class="tit" id="lTit"></div></div>
   <div id="msg" aria-live="assertive"></div>
+  <div id="pista" class="pista hidden" aria-live="polite"></div>
   <label class="sw"><input type="checkbox" id="auto" checked> Registro automático (sin confirmar uno por uno; los casos dudosos quedan marcados para revisar)</label>
 
   <section class="prog" aria-label="Avance del rango">
@@ -230,6 +243,8 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
   <button class="pri" id="btnSend">Enviar a Claude</button>
 </div>
 
+<div id="hallado" role="alertdialog" aria-live="assertive"><div><div style="font-size:44px;font-weight:800">¡ENCONTRADO!</div><div id="hSig" style="font:700 26px ui-monospace,Menlo,monospace;margin-top:8px"></div><div id="hTxt" style="margin-top:6px"></div><button id="hOk" style="margin-top:18px;min-width:180px">Listo</button></div></div>
+
 <div id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTxt"><div><p id="dlgTxt"></p><div class="row"><button id="dlgNo">Cancelar</button><button class="pri" id="dlgYes">Sí</button></div></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
@@ -253,10 +268,11 @@ const Motor = (() => {
   // orden aproximado Dewey + Cutter, para detectar desorden
   function claveOrden(cn) {
     const s = String(cn || '').toUpperCase().trim();
-    const m = s.match(/^(\d{1,3})(?:\.(\d+))?\s*(.*)$/);
-    if (!m) return 'Z' + s;
-    const num = m[1].padStart(3, '0') + '.' + (m[2] || '').padEnd(12, '0');
-    return num + ' ' + m[3].replace(/\s+/g, ' ');
+    // prefijo de colección opcional (C, R, T, AU...) + número Dewey + Cutter
+    const m = s.match(/^([A-Z]{0,4})\s*(\d{1,3})(?:\.(\d+))?\s*(.*)$/);
+    if (!m) return '~' + s;
+    const num = m[2].padStart(3, '0') + '.' + (m[3] || '').padEnd(12, '0');
+    return (m[1] ? m[1] + ' ' : ' ') + num + ' ' + m[4].replace(/\s+/g, ' ');
   }
 
   function cargar(tsv) {
@@ -274,7 +290,7 @@ const Motor = (() => {
       filas.push(it); porCodigo.set(it.codigo.toUpperCase(), it);
       if (!it.clave) continue;
       let u = porUbic.get(it.ubic); if (!u) { u = { grupos: new Map(), porClase: new Map() }; porUbic.set(it.ubic, u); }
-      let g = u.grupos.get(it.clave); if (!g) { g = []; u.grupos.set(it.clave, g); const k3 = it.clave.slice(0, 3); if (!u.porClase.has(k3)) u.porClase.set(k3, []); u.porClase.get(k3).push(it.clave); }
+      let g = u.grupos.get(it.clave); if (!g) { g = []; u.grupos.set(it.clave, g); const k3 = (it.clave.match(/\d{3}/) || [it.clave.slice(0, 3)])[0]; if (!u.porClase.has(k3)) u.porClase.set(k3, []); u.porClase.get(k3).push(it.clave); }
       g.push(it);
     }
     meta.total = filas.length;
@@ -317,10 +333,13 @@ const Motor = (() => {
     let ex = masLargas(cand.filter(cl => plano.includes(cl)));
     // 2) idéntica salvo confusiones típicas del OCR
     if (!ex.length) ex = masLargas(cand.filter(cl => pc.includes(canon(cl))));
+    // 3) el OCR no leyó la letra de colección (C863..., R030...): comparar sin el prefijo
+    const sinPref = cl => cl.replace(/^[A-Z]+(?=\d)/, '');
+    if (!ex.length) ex = masLargas(cand.filter(cl => sinPref(cl) !== cl && (plano.includes(sinPref(cl)) || pc.includes(canon(sinPref(cl))))));
     let cercanas = [];
     if (!ex.length) {
       for (const cl of cand) {
-        const cc = canon(cl), k3 = cc.slice(0, 3); let pos = pc.indexOf(k3), best = 9;
+        const cc = canon(sinPref(cl)), k3 = (cc.match(/\d{3}/) || [cc.slice(0, 3)])[0]; let pos = pc.indexOf(k3), best = 9;
         while (pos >= 0) { best = Math.min(best, lev(pc.slice(pos, pos + cc.length), cc, 2), lev(pc.slice(pos, pos + cc.length + 1), cc, 2), lev(pc.slice(pos, pos + cc.length - 1), cc, 2)); pos = pc.indexOf(k3, pos + 1); }
         if (best <= 2) cercanas.push([cl, best]);
       }
@@ -581,12 +600,13 @@ function recorte(giro){
 }
 async function cicloOCR(){
   if(!activo||modo!=='sig')return;
-  if(pausa||ocupado||!T()){setTimeout(cicloOCR,250);return}
+  if(pausa||ocupado||(!T()&&!busca)){setTimeout(cicloOCR,250);return}
   ocupado=true;
   try{
     const giros=ori==='h'?[0]:(ultGiro===-1?[-1,1]:[1,-1]);let mejor=null;
     for(const g of giros){const c=recorte(g);if(!c)break;const {data}=await worker.recognize(c);
-      const r=Motor.resolver(data.text,T().ubic,new Set(T().items.map(x=>x.codigo)));
+      const ub=busca?(T()?T().ubic:busca.ubic):T().ubic;
+      const r=Motor.resolver(data.text,ub,new Set(busca?[]:T().items.map(x=>x.codigo)));
       $('ocrtxt').textContent=data.text.trim().slice(0,120)||'…';
       if(r.estado!=='nada'){mejor=r;if(g)ultGiro=g;break}}
     if(mejor){vacios=0;procesar(mejor)}else{ultimaClave='';if(++vacios>=2)bloqueoSig=''}   // se libera tras dos lecturas sin etiqueta (la cámara pasó a otro libro)
@@ -600,6 +620,7 @@ function claveRes(r){return r.estado+'|'+(r.item?r.item.codigo:(r.opciones||[]).
 function sigKey(r){return [...new Set((r.item?[r.item]:(r.opciones||[])).map(x=>x.cn))].sort().join(',')+'|'+(r.lec?r.lec.e:'')+'|'+(r.lec?r.lec.v:'')}
 let bloqueoSig='',vacios=0,ultGiro=1;
 function procesar(r){
+  if(busca){const c=r.item?[r.item]:(r.opciones||[]);if(c.length){marco('verde');procesarBusqueda(c,c[0].cn)}return}
   const k=claveRes(r),now=Date.now(),sk=sigKey(r);
   if(sk===bloqueoSig)return;                         // misma etiqueta que acabamos de registrar: esperar a que la cámara pase a otro libro
   const seguro=r.estado==='ok'||r.estado==='ambiguo';   // signatura idéntica a la de Koha: basta una lectura
@@ -634,11 +655,61 @@ function automatico(r){
   mostrarDecision(r);
 }
 
+// ---------- búsqueda de ejemplar perdido ----------
+let busca=null; // {items:[...], cn, ubic, etiqueta}
+function todasLasUbic(){return hayMaestro?Motor.ubicaciones().map(x=>x[0]):[]}
+function resolverEnTodas(txt,preferida){
+  const orden=[preferida,...todasLasUbic().filter(u=>u!==preferida)].filter(Boolean);
+  for(const u of orden){const r=Motor.resolver(txt,u,new Set());if(r.estado==='ok')return [r.item];if(r.estado==='ambiguo')return r.opciones;}
+  return [];
+}
+function iniciarBusqueda(){
+  const q=$('bQ').value.trim();if(!q)return;
+  if(!hayMaestro){msg('Primero descarga el maestro.','bad');return}
+  let items=[];
+  if(/^\d{7}(-P)?$/i.test(q.replace(/\s+/g,''))){const it=Motor.buscarCodigo(q.replace(/\s+/g,''));if(it)items=[it]}
+  else items=resolverEnTodas(q,T()?T().ubic:'');
+  if(!items.length){msg('No encontré esa signatura o código en el maestro.','bad');sonido(false);return}
+  const lec=Motor.lecturaDe(q);
+  busca={items,codigos:new Set(items.map(x=>x.codigo)),cn:items[0].cn,ubic:items[0].ubic,porEjemplar:items.length===1};
+  $('bObj').innerHTML=`<b>Buscando:</b> ${esc(items.length===1?sigDe(items[0]):items[0].cn+' (cualquier ejemplar)')}<br>${esc(items[0].titulo||'')}<br>Koha lo ubica en: <b>${esc([...new Set(items.map(x=>x.ubic))].join(', '))}</b>${items.some(x=>x.perdido)?' · figura como perdido':''}`;
+  $('bFin').classList.remove('hidden');$('pista').classList.add('hidden');
+  if(modo!=='sig')setModo('sig');
+  msg('Modo búsqueda: pasa la cámara por las etiquetas. No se registra nada en el inventario.','ok');
+  if(!activo)camara();
+}
+function terminarBusqueda(){busca=null;$('bObj').textContent='';$('bFin').classList.add('hidden');$('pista').classList.add('hidden');msg('Búsqueda terminada. Volviste al inventario.','');}
+function pista(cn){
+  const p=$('pista');if(!busca||!cn){p.classList.add('hidden');return}
+  const a=Motor.claveOrden(cn),b=Motor.claveOrden(busca.cn);
+  const mismaClase=a.slice(0,7)===b.slice(0,7);
+  if(a===b){p.className='pista cerca';p.textContent=`Leíste ${cn}: es otro ejemplar del mismo título. El que buscas debe estar al lado.`;return}
+  p.className='pista '+(a<b?'adelante':'atras')+(mismaClase?' cerca':'');
+  p.textContent=a<b?`Leíste ${cn}: el libro va MÁS ADELANTE →`:`Leíste ${cn}: el libro va MÁS ATRÁS ←`;
+  if(mismaClase)p.textContent+=' (muy cerca)';
+}
+function hallado(it){
+  pausa=true;$('hSig').textContent=sigDe(it);$('hTxt').textContent=`${it.codigo} · ${it.titulo||''}`;
+  $('hallado').style.display='grid';
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();[0,.18,.36].forEach(d=>{const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=1500;g.gain.value=.25;o.connect(g);g.connect(actx.destination);o.start(actx.currentTime+d);o.stop(actx.currentTime+d+.12)})}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate([200,100,200,100,400])}catch(e){}
+}
+function procesarBusqueda(cands,cnLeido){
+  if(!busca)return false;
+  const hit=cands.find(x=>busca.codigos.has(x.codigo))||(!busca.porEjemplar?null:null);
+  if(hit){hallado(hit);return true}
+  pista(cnLeido);marco('ambar');return true;
+}
+$('bGo').onclick=iniciarBusqueda;
+$('bQ').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();iniciarBusqueda()}});
+$('bFin').onclick=terminarBusqueda;
+$('hOk').onclick=()=>{$('hallado').style.display='none';pausa=false;terminarBusqueda()};
+
 // ---------- cámara ----------
 async function camara(){
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){}
   if(activo){await apagar();msg('Cámara detenida.','');return}
-  if(!T()){msg('Primero elige la estantería y pulsa “Usar esta estantería”.','bad');sonido(false);return}
+  if(!T()&&!busca){msg('Primero elige la estantería y pulsa “Usar esta estantería”.','bad');sonido(false);return}
   if(!window.isSecureContext){msg('La cámara solo funciona si la página se abre con https.','bad');return}
   if(modo==='sig'){
     if(!hayMaestro){msg('Para leer signaturas primero descarga el maestro con la clave del equipo.','bad');sonido(false);return}
@@ -675,7 +746,9 @@ function onCodigo(text){
   if(pausa)return;const now=Date.now();
   if(text===cBloq&&now-cBloqT<2500)return;
   if(!(text===cUlt&&now-cT<1500)){cUlt=text;cT=now;return}
-  cBloq=text;cBloqT=now;cUlt='';porCodigo(text,false);
+  cBloq=text;cBloqT=now;cUlt='';
+  if(busca){const it=Motor.buscarCodigo(text);if(it&&busca.codigos.has(it.codigo))hallado(it);else if(it)pista(it.cn);return}
+  porCodigo(text,false);
 }
 function porCodigo(code,manual){
   code=String(code||'').trim().toUpperCase().replace(/\s+/g,'');
@@ -758,7 +831,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 if(!window.isSecureContext)aviso('Abre esta página desde su enlace https (GitHub Pages). Así la cámara funciona.');
 render();iniciarMaestro();
 // para pruebas automáticas
-window.__inv={vacio:()=>{ultimaClave='';bloqueoSig=''},procesarTexto:(txt)=>{const r=Motor.resolver(txt,T().ubic,new Set(T().items.map(x=>x.codigo)));ultimaClave=claveRes(r);procesar(r);return r.estado}};
+window.__inv={buscarTexto:(t)=>{const r=Motor.resolver(t,T()?T().ubic:busca.ubic,new Set());procesar(r);return r.estado},vacio:()=>{ultimaClave='';bloqueoSig=''},procesarTexto:(txt)=>{const r=Motor.resolver(txt,T().ubic,new Set(T().items.map(x=>x.codigo)));ultimaClave=claveRes(r);procesar(r);return r.estado}};
 }
 </script>
 </body>
