@@ -173,6 +173,15 @@ const Motor = (() => {
   }
   // forma canónica: iguala caracteres que el OCR confunde (O/0, I/L/1, S/5, B/8, Z/2, G/6)
   const canon = s => s.replace(/[OQD]/g, '0').replace(/[IL|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/G/g, '6');
+  // posición de la letra inicial del autor (Cutter) dentro de la clave
+  const posCutter = cl => { const m = cl.match(/^[A-Z]{0,4}\d[\d.]*/); return m && m[0].length < cl.length ? m[0].length : -1; };
+  const CONF = { B: '8', S: '5', O: '0', Q: '0', D: '0', I: '1', L: '1', G: '6' };
+  // 'fuerte': la letra del autor se leyó como letra; 'debil': se leyó como su número parecido (B/8, S/5...); null: no corresponde
+  function calidad(raw, cl) { const k = posCutter(cl); if (k < 0) return 'fuerte'; const r = raw[k]; if (!r) return null; if (/[A-Z]/.test(r)) return r === cl[k] || canon(r) === canon(cl[k]) ? 'fuerte' : null; return CONF[cl[k]] === r ? 'debil' : null; }
+  // busca 'sub' en 'txt' sin dígitos pegados antes o después; devuelve las posiciones válidas
+  function posiciones(txt, sub) { const out = []; let i = txt.indexOf(sub); while (i >= 0) { const a = txt[i - 1], b = txt[i + sub.length]; if (!(a && /[0-9.]/.test(a)) && !(b && /[0-9]/.test(b))) out.push(i); i = txt.indexOf(sub, i + 1); } return out; }
+  // solo para signaturas Dewey con decimal y autor (p. ej. C863.64G216C), nunca para códigos cortos como AU0014
+  const sinPref = cl => { const r = cl.replace(/^[A-Z]{1,2}(?=\d{3}\.)/, ''); return (r !== cl && r.length >= 8 && /\d{3}\.\d+[A-Z]/.test(r)) ? r : cl; };
   function clavesEn(lec, ubic) {
     const u = porUbic.get(ubic); if (!u) return { exactas: [], cercanas: [] };
     const plano = lec.plano, pc = canon(plano);
@@ -180,17 +189,25 @@ const Motor = (() => {
     const cand = []; for (const k3 of clases) for (const cl of (u.porClase.get(k3) || [])) cand.push(cl);
     const masLargas = a => a.filter(x => !a.some(y => y !== x && y.includes(x)));
     // 1) idéntica en el texto leído
-    let ex = masLargas(cand.filter(cl => plano.includes(cl)));
-    // 2) idéntica salvo confusiones típicas del OCR
-    if (!ex.length) ex = masLargas(cand.filter(cl => pc.includes(canon(cl))));
-    // 3) el OCR no leyó la letra de colección (C863..., R030...): comparar sin el prefijo
-    const sinPref = cl => cl.replace(/^[A-Z]+(?=\d)/, '');
-    if (!ex.length) ex = masLargas(cand.filter(cl => sinPref(cl) !== cl && (plano.includes(sinPref(cl)) || pc.includes(canon(sinPref(cl))))));
+    let ex = masLargas(cand.filter(cl => posiciones(plano, cl).length));
+    const debiles = [];
+    // 2) idéntica salvo confusiones típicas del OCR (con o sin la letra de colección)
+    if (!ex.length) {
+      const fuertes = [];
+      for (const cl of cand) for (const v of new Set([cl, sinPref(cl)])) {
+        for (const i of posiciones(pc, canon(v))) { const q = calidad(plano.slice(i, i + v.length), v); if (q === 'fuerte') fuertes.push(cl); else if (q === 'debil') debiles.push(cl); }
+      }
+      ex = masLargas([...new Set(fuertes)]);
+    }
     let cercanas = [];
     if (!ex.length) {
+      if (debiles.length) return { exactas: [], cercanas: masLargas([...new Set(debiles)]).slice(0, 6), dist: 1 };
       for (const cl of cand) {
-        const cc = canon(sinPref(cl)), k3 = (cc.match(/\d{3}/) || [cc.slice(0, 3)])[0]; let pos = pc.indexOf(k3), best = 9;
-        while (pos >= 0) { best = Math.min(best, lev(pc.slice(pos, pos + cc.length), cc, 2), lev(pc.slice(pos, pos + cc.length + 1), cc, 2), lev(pc.slice(pos, pos + cc.length - 1), cc, 2)); pos = pc.indexOf(k3, pos + 1); }
+        const v = sinPref(cl), cc = canon(v), k3 = (cc.match(/\d{3}/) || [cc.slice(0, 3)])[0]; let pos = pc.indexOf(k3), best = 9;
+        while (pos >= 0) {
+          for (const L of [cc.length, cc.length + 1, cc.length - 1]) { const seg = pc.slice(pos, pos + L); const d = lev(seg, cc, 2); if (d < best && calidad(plano.slice(pos, pos + L), v) !== null) best = d; }
+          pos = pc.indexOf(k3, pos + 1);
+        }
         if (best <= 2) cercanas.push([cl, best]);
       }
       cercanas.sort((a, b) => a[1] - b[1]); const d0 = cercanas.length ? cercanas[0][1] : 9;
