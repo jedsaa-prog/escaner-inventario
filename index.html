@@ -195,7 +195,15 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <button class="pri" id="btnCam">Iniciar cámara</button>
     <button id="btnTorch" disabled>Linterna</button>
   </div>
-  <button id="btnBloque" class="hidden" style="width:100%;margin-top:8px">Leer bloque: varias etiquetas de una vez</button>
+  <button id="btnFoto" class="pri" style="width:100%;margin-top:8px">Foto del entrepaño: leer todo de una vez</button>
+  <input type="file" id="fIn" accept="image/*" capture="environment" class="hidden">
+  <section id="fFoto" style="display:none;border:2px solid var(--acc2);border-radius:12px;padding:12px;margin-top:10px">
+    <b>Toca la fila de etiquetas</b><p class="note" style="margin:4px 0 8px">La franja amarilla debe cubrir las etiquetas de los lomos. Ajusta su alto con − y +.</p>
+    <canvas id="fCanvas" style="width:100%;border-radius:8px;touch-action:manipulation"></canvas>
+    <div class="row" style="margin-top:8px"><button id="fMenos">− alto</button><button id="fMas">+ alto</button><button class="ghost" id="fCerrar">Cancelar</button></div>
+    <button class="pri" id="fLeer" style="width:100%;margin-top:8px">Leer etiquetas de la foto</button>
+  </section>
+  <button id="btnBloque" class="hidden" style="width:100%;margin-top:8px">Leer franja punteada (sin tomar foto)</button>
   <section id="bloque" aria-live="polite">
     <h3 id="blTit">Leyendo bloque…</h3>
     <img id="blImg" alt="Foto del bloque leído">
@@ -247,7 +255,8 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <summary>Cómo usarla sin errores</summary>
     <ol style="border:0;padding-left:18px;list-style:decimal">
       <li style="display:list-item;border:0">Una sola vez por dispositivo: escribe la clave del equipo y pulsa <b>Descargar maestro</b>. Queda guardado y se actualiza solo cuando haya uno nuevo.</li>
-      <li style="display:list-item;border:0">Elige la ubicación, escribe la estantería (y el entrepaño si quieres) y el rango de signaturas que va en ella. Pulsa <b>Usar este entrepaño</b>: verás cuántos ítems deben leerse.</li>
+      <li style="display:list-item;border:0"><b>Lo más rápido:</b> escribe el rango Desde/Hasta del entrepaño, pulsa <b>Foto del entrepaño</b>, toma una foto nítida de frente, toca la fila de etiquetas y pulsa <b>Leer etiquetas de la foto</b>. Registra los marcados y termina los que falten con el marco amarillo.</li>
+    <li style="display:list-item;border:0">Elige la ubicación, escribe la estantería (y el entrepaño si quieres) y el rango de signaturas que va en ella. Pulsa <b>Usar este entrepaño</b>: verás cuántos ítems deben leerse.</li>
       <li style="display:list-item;border:0">Modo <b>Signatura</b>: encierra UNA etiqueta en el marco amarillo, quieta y con luz. Usa “Etiqueta vertical” para lomos delgados. Con el registro automático, cada etiqueta que coincide dos veces con el maestro se registra sola: pitido agudo y destello verde. Las deducciones y lecturas aproximadas quedan marcadas en “Para revisar”.</li>
       <li style="display:list-item;border:0">Si apagas el registro automático, la página se detiene en cada caso dudoso y te deja elegir.</li>
       <li style="display:list-item;border:0">Al terminar, pulsa <b>Compartir lista</b> para enviarla por WhatsApp o correo, o <b>Descargar lista .txt</b>. <b>Enviar a Claude</b> la copia para pegarla en el chat. Lleva la fecha 24/11/2026, el entrepaño, cada código con su signatura y los avisos.</li>
@@ -430,7 +439,81 @@ const Motor = (() => {
     const out = []; for (const g of u.grupos.values()) for (const it of g) { const k = claveOrden(it.cn); if (k >= a && k <= b) out.push(it); }
     return out.sort((x, y) => { const kx = claveOrden(x.cn), ky = claveOrden(y.cn); return kx < ky ? -1 : kx > ky ? 1 : ((x.v || 0) - (y.v || 0)) || ((x.e || 0) - (y.e || 0)); });
   }
-  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, get meta() { return meta; }, get total() { return filas.length; } };
+  // ---- lectura por rango: con la lista de libros esperados basta reconocer el autor (Cutter) ----
+  // lineas: [{t: texto, x: posición horizontal 0..1 en la foto}]
+  function enRango(lineas, ubic, desde, hasta, registrados) {
+    const exp = rango(ubic, desde, hasta);
+    const porClave = new Map(); for (const it of exp) { if (!porClave.has(it.clave)) porClave.set(it.clave, []); porClave.get(it.clave).push(it); }
+    const claves = [...porClave.keys()].map(cl => {
+      const k = posCutter(cl); const resto = k >= 0 ? cl.slice(k) : cl;
+      const m = resto.match(/^[A-Z]{1,2}\d{1,4}[A-Z]{0,3}/); const anio = (resto.match(/(1[89]\d\d|20[0-4]\d)$/) || [])[1] || '';
+      return { cl, cut: m ? m[0] : '', clase: k > 0 ? cl.slice(0, k) : '', anio };
+    }).filter(c => c.cut.length >= 3);
+    const hits = [];
+    for (const ln of lineas) {
+      const lec = lecturaDe(ln.t); const raw = lec.plano, pc = canon(raw);
+      let mejores = [];
+      for (const c of claves) {
+        let ok = false;
+        // el autor suele ir pegado al número de clase (330.15E26M): se exige que antes no haya otra letra y después no siga un dígito
+        const cc = canon(c.cut);
+        // se busca en el texto sin espacios y con espacios (así "B565P 1984" no se confunde con un autor más largo)
+        const conEsp = lec.t.replace(/\s+/g, ' ');
+        for (const R0 of [raw, conEsp]) { const P0 = canon(R0);
+          for (let i = P0.indexOf(cc); i >= 0 && ok !== true; i = P0.indexOf(cc, i + 1)) {
+            const ant = R0[i - 1], sig = R0[i + c.cut.length];
+            if (ant && /[A-Z]/.test(ant)) continue; if (sig && /[0-9]/.test(sig)) continue;
+            const q = R0.slice(i, i + c.cut.length) === c.cut ? 'fuerte' : calidad(R0.slice(i, i + c.cut.length), c.cut);
+            if (q === 'fuerte') ok = true; else if (q === 'debil') ok = 'aprox';
+          }
+          if (ok === true) break;
+        }
+        if (!ok && c.cut.length >= 4) { // un carácter distinto o la última letra sin leer (T882A ~ T8822, V339E ~ V339)
+          const base = /[A-Z]$/.test(c.cut) ? c.cut.slice(0, -1) : '';
+          for (let i = 0; i < pc.length && !ok; i++) {
+            if (raw[i] !== c.cut[0] || (i > 0 && /[A-Z]/.test(raw[i - 1]))) continue;
+            const seg = pc.slice(i, i + c.cut.length);
+            if (seg.length === c.cut.length && lev(seg, cc, 1) <= 1 && !/[0-9]/.test(raw[i + c.cut.length] || '')) ok = 'aprox';
+            else if (base.length >= 4 && pc.slice(i, i + base.length) === canon(base) && !/[0-9A-Z]/.test(raw[i + base.length] || '')) ok = 'aprox';
+          }
+        }
+        if (!ok) continue;
+        let puntos = c.cut.length + (ok === 'aprox' ? -2 : 0);
+        if (c.clase && (raw.includes(c.clase) || pc.includes(canon(c.clase)))) puntos += 4;
+        if (c.anio) puntos += lec.anio === c.anio ? 3 : -3; else if (lec.anio) puntos -= 1;
+        mejores.push({ c, puntos, aprox: ok === 'aprox' });
+      }
+      if (!mejores.length) continue;
+      mejores.sort((a, b) => b.puntos - a.puntos);
+      const top = mejores.filter(m => m.puntos === mejores[0].puntos);
+      // si varios autores coinciden igual de bien, la línea es ambigua: se descarta
+      if (new Set(top.map(m => m.c.cl)).size > 1) continue;
+      hits.push({ cl: top[0].c.cl, e: lec.e, v: lec.v, anio: lec.anio, x: ln.x, aprox: top[0].aprox, txt: ln.t });
+    }
+    // agrupa lecturas del mismo libro (misma clave y misma posición en la foto)
+    const fisicos = [];
+    for (const h of hits) {
+      const igual = fisicos.find(f => f.cl === h.cl && Math.abs(f.x - h.x) < 0.025 && (f.e == null || h.e == null || f.e === h.e));
+      if (igual) { if (!igual.anio && h.anio) igual.anio = h.anio; if (igual.e == null && h.e != null) igual.e = h.e; if (igual.v == null && h.v != null) igual.v = h.v; igual.aprox = igual.aprox && h.aprox; }
+      else fisicos.push({ ...h });
+    }
+    // asigna ejemplares: primero los que tienen número legible, luego los deducidos
+    const usados = new Set(registrados), res = [];
+    fisicos.sort((a, b) => (a.e == null) - (b.e == null));
+    for (const f of fisicos) {
+      let g = porClave.get(f.cl).filter(x => !usados.has(x.codigo));
+      if (f.anio && g.some(x => x.anio === f.anio) && g.some(x => x.anio !== f.anio)) g = g.filter(x => x.anio === f.anio);
+      let it = null, nota = '';
+      if (f.v != null && g.some(x => x.v != null)) { const gv = g.filter(x => x.v === f.v); if (f.e != null) it = gv.find(x => (x.e == null ? 1 : x.e) === f.e) || null; else it = gv.find(x => !x.perdido && !x.retirado) || null; if (it && f.e == null && gv.length > 1) nota = 'Ejemplar deducido: la etiqueta no muestra número'; }
+      else if (f.e != null) it = g.find(x => (x.e == null ? 1 : x.e) === f.e) || null;
+      else { it = g.find(x => !x.perdido && !x.retirado) || null; if (it && porClave.get(f.cl).length > 1) nota = 'Ejemplar deducido: la etiqueta no muestra número'; }
+      if (!it) continue;
+      usados.add(it.codigo);
+      res.push({ item: it, nota: [f.aprox ? 'Lectura aproximada: revisar signatura' : '', nota].filter(Boolean).join('; '), seguro: !f.aprox, txt: f.txt });
+    }
+    return { encontrados: res, esperados: exp.length };
+  }
+  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, enRango, get meta() { return meta; }, get total() { return filas.length; } };
 })();
 /*MATCH-END*/
 
@@ -775,52 +858,83 @@ function apiladas(ls){ // une líneas de una misma etiqueta horizontal (número 
     if(grp.length>1)g.push(grp)}
   return g}
 // recorta un tramo de la franja de etiquetas y lo amplía para que las letras tengan buen tamaño
-function tesela(src,x0,x1,giro){
+function tesela(src,x0,x1,giro,enfocar){
   const c=document.createElement('canvas'),cx=c.getContext('2d',{willReadFrequently:true});
   const sx=x0*src.width,sw=(x1-x0)*src.width,sh=src.height,k=Math.max(2.5,Math.min(4,2200/Math.max(sw,sh)));const dw=Math.round(sw*k),dh=Math.round(sh*k);
   if(giro){c.width=dh;c.height=dw;cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2)}else{c.width=dw;c.height=dh}
-  cx.imageSmoothingQuality='high';cx.drawImage(src,sx,0,sw,sh,0,0,dw,dh);
-  const im=cx.getImageData(0,0,c.width,c.height),d=im.data;let mn=255,mx=0;for(let i=0;i<d.length;i+=4){const g=.3*d[i]+.59*d[i+1]+.11*d[i+2];d[i]=g;if(g<mn)mn=g;if(g>mx)mx=g}
-  const f=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*f));d[i]=d[i+1]=d[i+2]=g}cx.putImageData(im,0,0);return c}
+  cx.imageSmoothingQuality='high';cx.drawImage(src,sx,0,sw,sh,0,0,dw,dh);cx.setTransform(1,0,0,1,0,0);
+  const W=c.width,H=c.height,im=cx.getImageData(0,0,W,H),d=im.data;let mn=255,mx=0;
+  const g=new Float32Array(W*H);for(let i=0,j=0;i<d.length;i+=4,j++){const v=.3*d[i]+.59*d[i+1]+.11*d[i+2];g[j]=v;if(v<mn)mn=v;if(v>mx)mx=v}
+  const f=255/Math.max(40,mx-mn);for(let j=0;j<g.length;j++)g[j]=(g[j]-mn)*f;
+  let out=g;
+  if(enfocar){out=new Float32Array(W*H);for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const j=y*W+x;out[j]=5*g[j]-g[j-1]-g[j+1]-g[j-W]-g[j+W]}}
+  for(let j=0,i=0;j<out.length;j++,i+=4){const v=Math.max(0,Math.min(255,out[j]));d[i]=d[i+1]=d[i+2]=v}
+  cx.putImageData(im,0,0);return c}
+// lee una franja (imagen) en 5 tramos, con y sin enfoque; devuelve líneas con su posición horizontal (0..1)
+async function leerFranja(src,giros){
+  const tramos=[[0,.26],[.19,.45],[.38,.64],[.57,.83],[.74,1]];const trabajos=[];
+  for(const [a,b] of tramos)for(const gi of giros)for(const enf of [false,true])trabajos.push({a,b,gi,c:tesela(src,a,b,gi,enf)});
+  const out=[];let n=0,hechos=0;
+  await Promise.all(workers.map(async w=>{while(n<trabajos.length){const tr=trabajos[n++];const {data}=await w.recognize(tr.c,{},{blocks:true,text:true});
+    for(const l of lineasDe(data)){let fr;if(!tr.gi)fr=((l.b.x0+l.b.x1)/2)/tr.c.width;else{const m=((l.b.y0+l.b.y1)/2)/tr.c.height;fr=tr.gi>0?m:1-m}
+      out.push({t:l.t,x:tr.a+fr*(tr.b-tr.a)})}
+    $('blTit').textContent=`Leyendo… ${++hechos} de ${trabajos.length}`}}));
+  return out}
+// convierte las líneas leídas en libros: con rango, busca solo entre los esperados; sin rango, en toda la ubicación
+function interpretar(lineas){
+  const t=T(),reg=new Set(t.items.map(x=>x.codigo));const r=rangoDe(t);
+  if(t.desde&&t.hasta){const res=Motor.enRango(lineas,t.ubic,t.desde,t.hasta,reg);return res.encontrados.map(e=>({it:e.item,nota:e.nota,marcar:e.seguro}))}
+  const items=[],usados=new Set(),vistos=new Set();
+  for(const ln of lineas){const rr=Motor.resolver(ln.t,t.ubic,reg);let it=null,nota='',marcar=true;
+    if(rr.estado==='ok')it=rr.item;
+    else if(rr.estado==='ambiguo'){it=(rr.libres||[]).find(x=>!usados.has(x.codigo)&&!x.perdido&&!x.retirado&&x.ubic===t.ubic)||null;nota='Ejemplar deducido: la etiqueta no muestra número'}
+    if(!it||reg.has(it.codigo)||usados.has(it.codigo))continue;const sk=it.cn+'|'+Math.round(ln.x*40);if(rr.estado==='ambiguo'&&vistos.has(sk))continue;vistos.add(sk);usados.add(it.codigo);items.push({it,nota,marcar})}
+  return items}
+async function procesarImagen(src,titulo){
+  const t=T();bloqueando=true;$('btnBloque').disabled=true;$('btnFoto').disabled=true;
+  $('blImg').src=src.toDataURL('image/jpeg',.8);$('blTit').textContent=titulo;$('blLista').innerHTML='';$('blSi').disabled=true;$('bloque').style.display='block';$('bloque').scrollIntoView({block:'nearest',behavior:'smooth'});
+  try{
+    await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'11'})));
+    let lineas=await leerFranja(src,ori==='h'?[0]:[1,-1]);
+    if(lineas.filter(l=>/\d{3}|[A-Z]\d{2}/i.test(l.t)).length<3){$('blTit').textContent='Probando la otra orientación…';lineas=lineas.concat(await leerFranja(src,ori==='h'?[1,-1]:[0]))}
+    bloqueItems=interpretar(lineas).sort((a,b)=>Motor.claveOrden(a.it.cn)<Motor.claveOrden(b.it.cn)?-1:1);
+    const sinRango=!(t.desde&&t.hasta);
+    $('blTit').textContent=bloqueItems.length?`${bloqueItems.length} libro${bloqueItems.length===1?'':'s'} nuevo${bloqueItems.length===1?'':'s'} reconocido${bloqueItems.length===1?'':'s'}${sinRango?'':' dentro del rango'}. Desmarca lo que no corresponda.`:`No reconocí libros nuevos. ${sinRango?'Escribe el rango Desde/Hasta: con él la lectura es mucho más efectiva. ':''}Revisa que la franja cubra la fila de etiquetas y que la foto esté nítida.`;
+    $('blLista').innerHTML=bloqueItems.map((x,i)=>`<label class="it"><input type="checkbox" data-b="${i}"${x.marcar?' checked':''}><span><code>${esc(sigDe(x.it))}</code><small>${esc(x.it.codigo)} · ${esc(x.it.titulo||'')}</small>${x.nota?`<em>${esc(x.nota)}</em>`:''}</span></label>`).join('');
+    $('blSi').disabled=!bloqueItems.length;
+    if(bloqueItems.length)sonido(true);
+  }catch(e){$('blTit').textContent='No se pudo leer: '+(e.message||e)}
+  finally{await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'6'}).catch(()=>{})));$('btnFoto').disabled=false}
+}
 async function leerBloque(){
   const t=T();if(!t||!activo||modo!=='sig'||bloqueando)return;
   const v=$('vid');if(!v.videoWidth)return;
-  bloqueando=true;$('btnBloque').disabled=true;
-  // solo la franja punteada: la fila de etiquetas
   const F=FRANJA[ori],W=v.videoWidth,H=v.videoHeight,fx=.03*W,fw=.94*W,fy=F.y*H,fh=F.h*H;
   const foto=document.createElement('canvas');foto.width=Math.round(fw);foto.height=Math.round(fh);foto.getContext('2d').drawImage(v,fx,fy,fw,fh,0,0,foto.width,foto.height);
-  $('blImg').src=foto.toDataURL('image/jpeg',.8);$('blTit').textContent='Leyendo bloque… (unos segundos)';$('blLista').innerHTML='';$('bloque').style.display='block';
-  sonido(true);
-  try{
-    await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'11'})));
-    const tramos=[[0,.26],[.19,.45],[.38,.64],[.57,.83],[.74,1]];
-    async function pasada(giros){const trabajos=[];for(const [a,b] of tramos)for(const g of giros)trabajos.push(tesela(foto,a,b,g));
-      const out=[];let n=0;await Promise.all(workers.map(async w=>{while(n<trabajos.length){const c=trabajos[n++];const {data}=await w.recognize(c,{},{blocks:true,text:true});out.push(lineasDe(data))}}));return out}
-    const textos=await pasada(ori==='h'?[0]:[1,-1]);
-    // si casi no encontró etiquetas, prueba la otra orientación
-    const util=textos.flat().filter(l=>/\d{3}/.test(l.t)).length;
-    if(util<3){$('blTit').textContent='Probando la otra orientación de las etiquetas…';textos.push(...await pasada(ori==='h'?[1,-1]:[0]))}
-    const reg=new Set(t.items.map(x=>x.codigo)),vistos=new Set(),usados=new Set();bloqueItems=[];
-    for(const ls of textos){
-      const cands=[...ls.map(l=>l.t),...apiladas(ls).map(g=>g.map(x=>x.t).join(' '))];
-      for(const txt of cands){
-        const r=Motor.resolver(txt,t.ubic,reg);let it=null,nota='',marcar=true;
-        if(r.estado==='ok')it=r.item;
-        else if(r.estado==='ambiguo'){const lib=(r.libres||[]).filter(x=>!usados.has(x.codigo)&&!x.perdido&&!x.retirado&&x.ubic===t.ubic);it=lib[0]||null;nota='Ejemplar deducido: la etiqueta no muestra número'}
-        else if(r.estado==='dudoso'&&r.tipo==='cercana'&&r.dist<=1&&new Set(r.opciones.map(x=>x.cn)).size===1){const lib=r.opciones.filter(x=>!reg.has(x.codigo)&&!usados.has(x.codigo)&&!x.perdido&&x.ubic===t.ubic);it=lib[0]||null;nota='Lectura aproximada: revisar signatura';marcar=false}
-        if(!it||reg.has(it.codigo)||usados.has(it.codigo))continue;
-        const sk=it.cn+'|'+(r.lec.e||'')+'|'+(r.lec.v||'');if(r.estado==='ambiguo'&&vistos.has(sk))continue;vistos.add(sk);
-        usados.add(it.codigo);bloqueItems.push({it,nota,marcar});
-      }
-    }
-    bloqueItems.sort((a,b)=>Motor.claveOrden(a.it.cn)<Motor.claveOrden(b.it.cn)?-1:1);
-    $('blTit').textContent=bloqueItems.length?`Bloque: ${bloqueItems.length} etiqueta${bloqueItems.length===1?'':'s'} nueva${bloqueItems.length===1?'':'s'}. Desmarca las que no correspondan.`:'No reconocí etiquetas nuevas. Acércate hasta que las etiquetas llenen la franja punteada (unos 6 a 10 libros), con buena luz, y vuelve a intentar.';
-    $('blLista').innerHTML=bloqueItems.map((x,i)=>`<label class="it"><input type="checkbox" data-b="${i}"${x.marcar?' checked':''}><span><code>${esc(sigDe(x.it))}</code><small>${esc(x.it.codigo)} · ${esc(x.it.titulo||'')}</small>${x.nota?`<em>${esc(x.nota)}</em>`:''}</span></label>`).join('');
-    $('blSi').disabled=!bloqueItems.length;
-  }catch(e){$('blTit').textContent='No se pudo leer el bloque: '+(e.message||e)}
-  finally{await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'6'})).map(p=>p.catch(()=>{})))}
+  sonido(true);await procesarImagen(foto,'Leyendo la franja…');
 }
-function cerrarBloque(){$('bloque').style.display='none';bloqueItems=[];bloqueando=false;$('btnBloque').disabled=false;bloqueoSig='';ultimaClave=''}
+// ---------- foto del entrepaño: la cámara del celular toma una foto nítida y se lee la fila de etiquetas ----------
+let fotoImg=null,fotoY=.5,fotoH=.3;
+function pintarFoto(){const c=$('fCanvas'),cx=c.getContext('2d');const im=fotoImg;const k=Math.min(1,900/im.width);c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);cx.drawImage(im,0,0,c.width,c.height);
+  const y0=(fotoY-fotoH/2)*c.height,h=fotoH*c.height;cx.fillStyle='rgba(0,0,0,.45)';cx.fillRect(0,0,c.width,Math.max(0,y0));cx.fillRect(0,y0+h,c.width,c.height-y0-h);cx.strokeStyle='#ffd54a';cx.lineWidth=3;cx.setLineDash([10,6]);cx.strokeRect(2,y0,c.width-4,h)}
+async function abrirFoto(file){
+  if(!T()){msg('Primero elige la estantería.','bad');return}
+  try{if(!workers.length)await prepararOCR()}catch(e){msg('No cargó el lector. Revisa la conexión.','bad');return}
+  const bmp=await createImageBitmap(file);const k=Math.min(1,4000/Math.max(bmp.width,bmp.height));
+  const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  fotoImg=c;fotoY=.5;fotoH=ori==='h'?.22:.4;$('fFoto').style.display='block';pintarFoto();$('fFoto').scrollIntoView({block:'nearest',behavior:'smooth'});
+  msg('Toca la foto sobre la fila de etiquetas y pulsa “Leer etiquetas de la foto”.','');
+}
+$('btnFoto').onclick=()=>{if(!T()){msg('Primero elige la estantería y escribe el rango Desde/Hasta.','bad');sonido(false);return}if(activo)apagar();$('fIn').click()};
+$('fIn').onchange=()=>{const f=$('fIn').files[0];$('fIn').value='';if(f)abrirFoto(f)};
+$('fCanvas').addEventListener('click',e=>{const r=$('fCanvas').getBoundingClientRect();fotoY=Math.min(1-fotoH/2,Math.max(fotoH/2,(e.clientY-r.top)/r.height));pintarFoto()});
+$('fMas').onclick=()=>{fotoH=Math.min(.8,fotoH+.05);fotoY=Math.min(1-fotoH/2,Math.max(fotoH/2,fotoY));pintarFoto()};
+$('fMenos').onclick=()=>{fotoH=Math.max(.08,fotoH-.05);pintarFoto()};
+$('fLeer').onclick=async()=>{if(!fotoImg)return;const y0=Math.round((fotoY-fotoH/2)*fotoImg.height),h=Math.round(fotoH*fotoImg.height);
+  const band=document.createElement('canvas');band.width=fotoImg.width;band.height=h;band.getContext('2d').drawImage(fotoImg,0,y0,fotoImg.width,h,0,0,band.width,h);
+  $('fFoto').style.display='none';await procesarImagen(band,'Leyendo las etiquetas de la foto… (puede tardar unos segundos)')};
+$('fCerrar').onclick=()=>{$('fFoto').style.display='none';fotoImg=null};
+function cerrarBloque(){$('bloque').style.display='none';bloqueItems=[];bloqueando=false;$('btnBloque').disabled=false;$('btnFoto').disabled=false;bloqueoSig='';ultimaClave=''}
 $('btnBloque').onclick=leerBloque;
 $('blNo').onclick=()=>{cerrarBloque();msg('Bloque descartado.','')};
 $('blSi').onclick=()=>{let n=0;$('blLista').querySelectorAll('input[data-b]').forEach(cb=>{if(!cb.checked)return;const x=bloqueItems[+cb.dataset.b];if(registrar(x.it,x.nota?[x.nota,'Leído por bloque']:['Leído por bloque']))n++});cerrarBloque();msg(`Bloque registrado: ${n} libro${n===1?'':'s'}.`,'ok')};
