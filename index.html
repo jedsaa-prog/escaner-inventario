@@ -68,6 +68,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #guia.zv,#guia.verde.zv{left:34%;width:32%;top:6%;height:88%}
 #camoff{color:#ddd;text-align:center;padding:40px 20px;font-size:15px}
 #ocrtxt{position:absolute;left:8px;right:8px;bottom:8px;color:#fff;background:rgba(0,0,0,.55);font:13px/1.3 ui-monospace,Menlo,monospace;padding:4px 8px;border-radius:6px;display:none;white-space:pre-wrap;max-height:4.2em;overflow:hidden}
+#franja{position:absolute;left:3%;width:94%;border:2px dashed rgba(255,255,255,.75);border-radius:6px;pointer-events:none;display:none}
+#franja span{position:absolute;left:6px;top:-22px;color:#fff;font-size:12px;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:4px}
 #flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s}
 .last{border:2px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:8px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center}
 .last .sig{font:700 22px/1.15 ui-monospace,Menlo,Consolas,monospace}
@@ -183,6 +185,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
   <div id="cam">
     <video id="vid" playsinline muted class="hidden"></video>
     <div id="reader"></div>
+    <div id="franja"><span>Franja para leer en bloque</span></div>
     <div id="guia" class="h"></div>
     <div id="camoff">Descarga el maestro y elige la estantería.<br>Luego pulsa <b>Iniciar cámara</b>.</div>
     <div id="ocrtxt"></div>
@@ -326,7 +329,7 @@ const Motor = (() => {
     let t = String(texto || '').toUpperCase().replace(/[“”"'`´]/g, '').replace(/[\/\\|_]/g, ' ').replace(/,/g, '.').replace(/[ \t]+/g, ' ');
     const plano = t.replace(/\s+/g, '');
     // ejemplar, volumen, año: buscar en el texto con espacios
-    const e = t.match(/\b(?:E|EJ|C)\s*\.\s*([0-9OIL]{1,3})\b/) || t.match(/(?:^|\s)(?:E|EJ)\s?([0-9IL]{1,2})(?=\s|$)/);
+    const e = t.match(/\b(?:E|EJ|C)\s*\.\s*([0-9OIL]{1,3})\b/) || t.match(/(?:^|\s)(?:E|EJ)\s?([0-9IL])(?=\s|$)/);
     const v = t.match(/\b(?:V|VOL|T)\s*\.\s*([0-9OIL]{1,3})\b/);
     const anio = t.match(/\b(1[89]\d\d|20[0-4]\d)\b/);
     return { t, plano, e: e ? +aDig(e[1]) : null, v: v ? +aDig(v[1]) : null, anio: anio ? anio[1] : null };
@@ -624,7 +627,9 @@ async function prepararOCR(){
 // marco: pequeño por defecto, para encerrar una sola etiqueta
 const GEO={h:{s:{x:.2,y:.42,w:.6,h:.16},m:{x:.1,y:.37,w:.8,h:.26},l:{x:.06,y:.3,w:.88,h:.4}},v:{s:{x:.42,y:.2,w:.16,h:.6},m:{x:.37,y:.1,w:.26,h:.8},l:{x:.3,y:.06,w:.4,h:.88}}};
 let tam='s';try{tam=localStorage.getItem('crai-marco')||'s'}catch(e){}
-function aplicarMarco(){const r=GEO[ori][tam],g=$('guia');g.style.left=r.x*100+'%';g.style.top=r.y*100+'%';g.style.width=r.w*100+'%';g.style.height=r.h*100+'%';['S','M','L'].forEach(k=>$('t'+k).setAttribute('aria-pressed',tam===k.toLowerCase()))}
+const FRANJA={h:{y:.30,h:.40},v:{y:.12,h:.76}};
+function aplicarFranja(){const f=FRANJA[ori],e=$('franja');e.style.top=f.y*100+'%';e.style.height=f.h*100+'%'}
+function aplicarMarco(){aplicarFranja();const r=GEO[ori][tam],g=$('guia');g.style.left=r.x*100+'%';g.style.top=r.y*100+'%';g.style.width=r.w*100+'%';g.style.height=r.h*100+'%';['S','M','L'].forEach(k=>$('t'+k).setAttribute('aria-pressed',tam===k.toLowerCase()))}
 const lienzos=[0,1].map(()=>{const c=document.createElement('canvas');return [c,c.getContext('2d',{willReadFrequently:true})]});
 function recorte(giro,i){
   const [cv,cx]=lienzos[i||0];
@@ -769,26 +774,32 @@ function apiladas(ls){ // une líneas de una misma etiqueta horizontal (número 
       if(ov>0.4*w&&l.b.y0-last.b.y1<1.6*H(last)){grp.push(l);used.add(j);last=l}}
     if(grp.length>1)g.push(grp)}
   return g}
+// recorta un tramo de la franja de etiquetas y lo amplía para que las letras tengan buen tamaño
 function tesela(src,x0,x1,giro){
   const c=document.createElement('canvas'),cx=c.getContext('2d',{willReadFrequently:true});
-  const sw=(x1-x0)*src.width,sh=src.height,k=Math.max(1.2,Math.min(3,1800/Math.max(sw,sh)));const dw=Math.round(sw*k),dh=Math.round(sh*k);
+  const sx=x0*src.width,sw=(x1-x0)*src.width,sh=src.height,k=Math.max(2.5,Math.min(4,2200/Math.max(sw,sh)));const dw=Math.round(sw*k),dh=Math.round(sh*k);
   if(giro){c.width=dh;c.height=dw;cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2)}else{c.width=dw;c.height=dh}
-  cx.drawImage(src,x0*src.width,0,sw,sh,0,0,dw,dh);
+  cx.imageSmoothingQuality='high';cx.drawImage(src,sx,0,sw,sh,0,0,dw,dh);
   const im=cx.getImageData(0,0,c.width,c.height),d=im.data;let mn=255,mx=0;for(let i=0;i<d.length;i+=4){const g=.3*d[i]+.59*d[i+1]+.11*d[i+2];d[i]=g;if(g<mn)mn=g;if(g>mx)mx=g}
   const f=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*f));d[i]=d[i+1]=d[i+2]=g}cx.putImageData(im,0,0);return c}
 async function leerBloque(){
   const t=T();if(!t||!activo||modo!=='sig'||bloqueando)return;
   const v=$('vid');if(!v.videoWidth)return;
   bloqueando=true;$('btnBloque').disabled=true;
-  const foto=document.createElement('canvas');foto.width=v.videoWidth;foto.height=v.videoHeight;foto.getContext('2d').drawImage(v,0,0);
-  $('blImg').src=foto.toDataURL('image/jpeg',.7);$('blTit').textContent='Leyendo bloque… (unos segundos)';$('blLista').innerHTML='';$('bloque').style.display='block';
+  // solo la franja punteada: la fila de etiquetas
+  const F=FRANJA[ori],W=v.videoWidth,H=v.videoHeight,fx=.03*W,fw=.94*W,fy=F.y*H,fh=F.h*H;
+  const foto=document.createElement('canvas');foto.width=Math.round(fw);foto.height=Math.round(fh);foto.getContext('2d').drawImage(v,fx,fy,fw,fh,0,0,foto.width,foto.height);
+  $('blImg').src=foto.toDataURL('image/jpeg',.8);$('blTit').textContent='Leyendo bloque… (unos segundos)';$('blLista').innerHTML='';$('bloque').style.display='block';
   sonido(true);
   try{
     await Promise.all(workers.map(w=>w.setParameters({tessedit_pageseg_mode:'11'})));
-    const franjas=[[0,.4],[.3,.7],[.6,1]],giros=ori==='h'?[0]:[1,-1];const trabajos=[];
-    for(const [a,b] of franjas)for(const g of giros)trabajos.push(tesela(foto,a,b,g));
-    const textos=[];let n=0;
-    await Promise.all(workers.map(async w=>{while(n<trabajos.length){const c=trabajos[n++];const {data}=await w.recognize(c,{},{blocks:true,text:true});textos.push(lineasDe(data))}}));
+    const tramos=[[0,.26],[.19,.45],[.38,.64],[.57,.83],[.74,1]];
+    async function pasada(giros){const trabajos=[];for(const [a,b] of tramos)for(const g of giros)trabajos.push(tesela(foto,a,b,g));
+      const out=[];let n=0;await Promise.all(workers.map(async w=>{while(n<trabajos.length){const c=trabajos[n++];const {data}=await w.recognize(c,{},{blocks:true,text:true});out.push(lineasDe(data))}}));return out}
+    const textos=await pasada(ori==='h'?[0]:[1,-1]);
+    // si casi no encontró etiquetas, prueba la otra orientación
+    const util=textos.flat().filter(l=>/\d{3}/.test(l.t)).length;
+    if(util<3){$('blTit').textContent='Probando la otra orientación de las etiquetas…';textos.push(...await pasada(ori==='h'?[1,-1]:[0]))}
     const reg=new Set(t.items.map(x=>x.codigo)),vistos=new Set(),usados=new Set();bloqueItems=[];
     for(const ls of textos){
       const cands=[...ls.map(l=>l.t),...apiladas(ls).map(g=>g.map(x=>x.t).join(' '))];
@@ -803,7 +814,7 @@ async function leerBloque(){
       }
     }
     bloqueItems.sort((a,b)=>Motor.claveOrden(a.it.cn)<Motor.claveOrden(b.it.cn)?-1:1);
-    $('blTit').textContent=bloqueItems.length?`Bloque: ${bloqueItems.length} etiqueta${bloqueItems.length===1?'':'s'} nueva${bloqueItems.length===1?'':'s'}. Desmarca las que no correspondan.`:'No reconocí etiquetas nuevas en este bloque. Acércate un poco más o usa el marco para leerlas una a una.';
+    $('blTit').textContent=bloqueItems.length?`Bloque: ${bloqueItems.length} etiqueta${bloqueItems.length===1?'':'s'} nueva${bloqueItems.length===1?'':'s'}. Desmarca las que no correspondan.`:'No reconocí etiquetas nuevas. Acércate hasta que las etiquetas llenen la franja punteada (unos 6 a 10 libros), con buena luz, y vuelve a intentar.';
     $('blLista').innerHTML=bloqueItems.map((x,i)=>`<label class="it"><input type="checkbox" data-b="${i}"${x.marcar?' checked':''}><span><code>${esc(sigDe(x.it))}</code><small>${esc(x.it.codigo)} · ${esc(x.it.titulo||'')}</small>${x.nota?`<em>${esc(x.nota)}</em>`:''}</span></label>`).join('');
     $('blSi').disabled=!bloqueItems.length;
   }catch(e){$('blTit').textContent='No se pudo leer el bloque: '+(e.message||e)}
@@ -824,12 +835,12 @@ async function camara(){
   if(modo==='sig'){
     if(!hayMaestro){msg('Para leer signaturas primero descarga el maestro con la clave del equipo.','bad');sonido(false);return}
     try{await prepararOCR()}catch(e){msg('No cargó el lector de signaturas. Revisa la conexión a internet y recarga.','bad');return}
-    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false})}
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:3840},height:{ideal:2160}},audio:false})}
     catch(e){msg('No se pudo abrir la cámara. Permite el acceso a la cámara para esta página.','bad');return}
     const v=$('vid');v.srcObject=stream;v.classList.remove('hidden');await v.play();track=stream.getVideoTracks()[0];
     $('guia').style.display='block';$('ocrtxt').style.display='block';$('camoff').style.display='none';
     try{const cap=track.getCapabilities?track.getCapabilities():{};$('btnTorch').disabled=!cap.torch}catch(e){}
-    aplicarMarco();activo=true;wake(true);$('btnCam').textContent='Detener cámara';$('btnBloque').classList.remove('hidden');msg('Encierra una etiqueta en el marco amarillo, o usa “Leer bloque” para varias a la vez.','');cicloOCR();
+    aplicarMarco();$('franja').style.display='block';activo=true;wake(true);$('btnCam').textContent='Detener cámara';$('btnBloque').classList.remove('hidden');msg('Encierra una etiqueta en el marco amarillo, o usa “Leer bloque” para varias a la vez.','');cicloOCR();
   }else{
     if(!window.Html5Qrcode){msg('No cargó el lector de códigos. Revisa la conexión y recarga.','bad');return}
     const F=Html5QrcodeSupportedFormats;
@@ -845,7 +856,7 @@ async function apagar(){
   activo=false;wake(false);
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;track=null}
   if(scanner){try{await scanner.stop()}catch(e){}}
-  $('vid').classList.add('hidden');$('guia').style.display='none';$('btnBloque').classList.add('hidden');$('ocrtxt').style.display='none';$('camoff').style.display='';
+  $('vid').classList.add('hidden');$('guia').style.display='none';$('btnBloque').classList.add('hidden');$('franja').style.display='none';$('ocrtxt').style.display='none';$('camoff').style.display='';
   $('btnCam').textContent='Iniciar cámara';$('btnTorch').disabled=true;torch=false;$('btnTorch').textContent='Linterna';
 }
 async function linterna(){if(!activo)return;torch=!torch;
