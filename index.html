@@ -8,13 +8,13 @@
 <style>
 /*
 VOICE: herramienta de trabajo en el estante, sobria, rápida y a prueba de errores.
-IDEA: la planilla de inventario por entrepaño, con su fecha fija.
-PICTURE: la cámara arriba, el último código leído en grande, la lista debajo.
+IDEA: la planilla de inventario por entrepaño, con su fecha fija y el maestro de Koha detrás.
+PICTURE: la cámara con su marco de lectura, el libro reconocido en grande, la lista debajo.
 COLOUR and TYPE: vinotinto UAO #8C1D2F sobre blanco; Arial/sistema.
 LAYOUT: una columna para celular, botones grandes al alcance del pulgar.
 */
-:root{color-scheme:light dark;--bg:#fff;--ink:#1c1a1b;--soft:#f4f0f1;--line:#e2d9dc;--acc:#8C1D2F;--acc2:#8C1D2F;--ok:#1f7a44;--warn:#9a5b00;--bad:#c62828;--mute:#6b6064}
-@media (prefers-color-scheme:dark){:root{--bg:#141012;--ink:#f2eeef;--soft:#231d20;--line:#3a3034;--acc2:#e0778a;--ok:#5fd18f;--warn:#f0b45a;--bad:#ff6b6b;--mute:#b3a7ab}}
+:root{color-scheme:light dark;--bg:#fff;--ink:#1c1a1b;--soft:#f4f0f1;--line:#e2d9dc;--acc:#8C1D2F;--acc2:#8C1D2F;--ok:#1f7a44;--warn:#9a5b00;--bad:#c62828;--mute:#6b6064;--okbg:#e3f4ea;--warnbg:#fdf0d9}
+@media (prefers-color-scheme:dark){:root{--bg:#141012;--ink:#f2eeef;--soft:#231d20;--line:#3a3034;--acc2:#e0778a;--ok:#5fd18f;--warn:#f0b45a;--bad:#ff6b6b;--mute:#b3a7ab;--okbg:#17301f;--warnbg:#33260f}}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Arial,Helvetica,system-ui,sans-serif;overflow-x:clip}
 header{background:var(--acc);color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
@@ -26,34 +26,52 @@ h2{font-size:15px;margin:18px 0 8px}
 label{font-size:13px;display:block;margin-bottom:4px;color:var(--mute)}
 input[type=text],select{width:100%;font-size:16px;padding:10px 12px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 input:focus,button:focus-visible,select:focus{outline:3px solid var(--acc2);outline-offset:1px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
 .row>*{flex:1 1 0}
 button{font:inherit;font-size:15px;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
 button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
 button.ghost{background:transparent}
 button:disabled{opacity:.45;cursor:not-allowed}
-.tramobox{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft)}
-.tramoname{font-weight:700;font-size:17px;margin-top:8px}
+.box{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft)}
+.maestro{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px}
+.maestro b.ok{color:var(--ok)}.maestro b.no{color:var(--bad)}
+.tramoname{font-weight:700;font-size:16px;margin-top:8px}
 .estado{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:middle}
 .estado.p{background:#fde9c8;color:#7a4a00}.estado.e{background:#d5f0df;color:#145c33}
-#cam{margin:12px 0 8px;border-radius:12px;overflow:hidden;background:#111;position:relative;min-height:200px;display:grid;place-items:center}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;border-radius:0;background:var(--bg);min-height:42px;font-size:14px}
+.seg button[aria-pressed=true]{background:var(--acc);color:#fff;font-weight:700}
+#cam{margin:10px 0 8px;border-radius:12px;overflow:hidden;background:#111;position:relative;min-height:200px}
+#cam video{width:100%;height:auto;display:block}
 #reader{width:100%}
 #reader video{width:100%!important;display:block}
-#camoff{color:#ddd;text-align:center;padding:24px;font-size:15px}
+#guia{position:absolute;border:3px solid #ffd54a;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none;display:none}
+#guia.h{left:6%;width:88%;top:34%;height:32%}
+#guia.v{left:34%;width:32%;top:6%;height:88%}
+#camoff{color:#ddd;text-align:center;padding:40px 20px;font-size:15px}
+#ocrtxt{position:absolute;left:8px;right:8px;bottom:8px;color:#fff;background:rgba(0,0,0,.55);font:13px/1.3 ui-monospace,Menlo,monospace;padding:4px 8px;border-radius:6px;display:none;white-space:pre-wrap;max-height:4.2em;overflow:hidden}
 #flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s}
-.last{display:flex;justify-content:space-between;align-items:center;gap:10px;border:2px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:8px}
-.last code{font:700 30px/1.1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em}
-.last .cnt{text-align:right}.last .cnt b{display:block;font-size:34px;line-height:1;color:var(--acc2)}.last .cnt span{font-size:12px;color:var(--mute)}
+.last{border:2px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:8px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center}
+.last .sig{font:700 22px/1.15 ui-monospace,Menlo,Consolas,monospace}
+.last .cod{font:600 16px/1.2 ui-monospace,Menlo,Consolas,monospace;color:var(--mute)}
+.last .tit{grid-column:1/-1;font-size:14px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.last .cnt{text-align:right;grid-row:1/3;grid-column:2}.last .cnt b{display:block;font-size:34px;line-height:1;color:var(--acc2)}.last .cnt span{font-size:12px;color:var(--mute)}
 #msg{min-height:26px;font-size:15px;font-weight:700;margin-top:6px}
 #msg.ok{color:var(--ok)}#msg.dup{color:var(--warn)}#msg.bad{color:var(--bad)}
+#decide{display:none;border:2px solid var(--warn);background:var(--warnbg);border-radius:12px;padding:12px;margin-top:8px}
+#decide h3{margin:0 0 4px;font-size:15px}
+#decide .leido{font:13px ui-monospace,Menlo,monospace;color:var(--mute);margin-bottom:8px;white-space:pre-wrap}
+#decide .op{display:block;width:100%;text-align:left;margin-top:6px;background:var(--bg);line-height:1.3}
+#decide .op small{display:block;color:var(--mute);font-size:12px}
 ol{list-style:none;padding:0;margin:8px 0;border-top:1px solid var(--line)}
 li{display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line)}
-li .n{width:2.4em;text-align:right;color:var(--mute);font-size:13px}
-li code{font:600 17px/1.2 ui-monospace,Menlo,Consolas,monospace;flex:1}
-li .flag{font-size:12px;color:var(--warn);font-weight:700}
-li button{min-height:36px;padding:4px 10px;font-size:13px}
+li .n{width:2.2em;text-align:right;color:var(--mute);font-size:13px;flex:none}
+li .d{flex:1}
+li .d code{font:600 15px/1.2 ui-monospace,Menlo,Consolas,monospace;display:block}
+li .d small{color:var(--mute);font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li .flag{font-size:12px;color:var(--warn);font-weight:700;display:block}
+li button{min-height:36px;padding:4px 10px;font-size:13px;flex:none}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:5}
 .bar button{flex:1;font-size:14px}
 details{margin-top:18px;font-size:14px}
@@ -63,7 +81,8 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 #dlg>div{background:var(--bg);border-radius:12px;padding:18px;max-width:440px;width:100%}
 #dlg p{margin:0 0 14px;white-space:pre-line}
 #aviso{display:none;background:#fde9c8;color:#5c3800;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px}
-@media (max-width:420px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.grid>div:first-child{grid-column:1/-1}.last code{font-size:24px}}
+.hidden{display:none!important}
+@media (max-width:420px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.grid>div:first-child{grid-column:1/-1}.last .sig{font-size:19px}}
 @media (prefers-reduced-motion:reduce){#flash{transition:none}}
 </style>
 </head>
@@ -75,16 +94,19 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 <main>
   <div id="aviso"></div>
 
-  <section class="tramobox" aria-labelledby="t1">
-    <h2 id="t1" style="margin-top:0">1. Entrepaño que vas a escanear</h2>
+  <section class="box maestro" aria-label="Archivo maestro de Koha">
+    <div id="mEstado">Archivo maestro: <b class="no">no cargado</b></div>
+    <div><label for="mFile" class="hidden">Archivo maestro</label>
+      <button id="btnM">Cargar archivo maestro</button>
+      <input type="file" id="mFile" accept=".tsv,.txt,text/plain,text/tab-separated-values" class="hidden"></div>
+  </section>
+
+  <section class="box" style="margin-top:10px" aria-labelledby="t1">
+    <h2 id="t1" style="margin-top:0">1. Entrepaño</h2>
     <div class="grid">
-      <div><label for="ubic">Ubicación</label><input type="text" id="ubic" placeholder="Sótano 2" autocomplete="off"></div>
+      <div><label for="ubic">Ubicación en Koha</label><select id="ubic"></select></div>
       <div><label for="est">Estante</label><input type="text" id="est" inputmode="numeric" placeholder="4" autocomplete="off"></div>
       <div><label for="ent">Entrepaño</label><input type="text" id="ent" inputmode="numeric" placeholder="3" autocomplete="off"></div>
-    </div>
-    <div class="grid2">
-      <div><label for="sig1">Primera signatura (opcional)</label><input type="text" id="sig1" placeholder="330.122 R347t" autocomplete="off"></div>
-      <div><label for="sig2">Última signatura (opcional)</label><input type="text" id="sig2" placeholder="330.15 H669s" autocomplete="off"></div>
     </div>
     <div class="row" style="margin-top:8px">
       <button class="pri" id="btnFijar">Usar este entrepaño</button>
@@ -93,10 +115,21 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <div class="tramoname" id="tramoname" aria-live="polite"></div>
   </section>
 
-  <h2>2. Escanear</h2>
+  <h2>2. Leer</h2>
+  <div class="seg" role="group" aria-label="Qué leer">
+    <button id="mSig" aria-pressed="true">Signatura del lomo</button>
+    <button id="mCod" aria-pressed="false">Código de barras</button>
+  </div>
+  <div class="seg" role="group" aria-label="Orientación de la etiqueta" id="oriBox" style="margin-top:6px">
+    <button id="oH" aria-pressed="true">Etiqueta horizontal</button>
+    <button id="oV" aria-pressed="false">Etiqueta vertical</button>
+  </div>
   <div id="cam">
+    <video id="vid" playsinline muted class="hidden"></video>
     <div id="reader"></div>
-    <div id="camoff">Primero elige el entrepaño.<br>Luego pulsa <b>Iniciar cámara</b> y pasa los libros uno a uno.</div>
+    <div id="guia" class="h"></div>
+    <div id="camoff">Carga el archivo maestro y elige el entrepaño.<br>Luego pulsa <b>Iniciar cámara</b>.</div>
+    <div id="ocrtxt"></div>
     <div id="flash"></div>
   </div>
   <div class="row">
@@ -104,13 +137,20 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <button id="btnTorch" disabled>Linterna</button>
   </div>
 
-  <div class="last"><code id="lastcode">—</code><div class="cnt"><b id="num">0</b><span>en este entrepaño</span></div></div>
+  <div class="last"><div class="sig" id="lSig">—</div><div class="cnt"><b id="num">0</b><span>en este entrepaño</span></div><div class="cod" id="lCod"></div><div class="tit" id="lTit"></div></div>
   <div id="msg" aria-live="assertive"></div>
 
-  <div class="row" style="margin-top:8px">
-    <div style="flex:2 1 0"><label for="manual">Código que no se deja leer (7 dígitos)</label>
-      <input type="text" id="manual" inputmode="numeric" placeholder="Ej.: 0042601" autocomplete="off" maxlength="12"></div>
-    <button id="btnAdd" style="flex:0 0 auto">Agregar</button>
+  <div id="decide" role="region" aria-label="Decisión pendiente">
+    <h3 id="dMot"></h3>
+    <div class="leido" id="dLei"></div>
+    <div id="dOps"></div>
+    <button class="ghost" id="dNo" style="margin-top:8px;width:100%">Ninguno: volver a leer</button>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <div style="flex:2 1 0"><label for="manual">Escribir signatura o código a mano</label>
+      <input type="text" id="manual" placeholder="330.122 R347t e.1  ó  0042601" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <button id="btnAdd" style="flex:0 0 auto">Buscar</button>
   </div>
 
   <h2>3. Lista del entrepaño</h2>
@@ -119,15 +159,14 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
   <details>
     <summary>Cómo usarla sin errores</summary>
     <ol style="border:0;padding-left:18px;list-style:decimal">
-      <li style="display:list-item;border:0">Escribe ubicación, estante y entrepaño, y pulsa <b>Usar este entrepaño</b>. Sin entrepaño, la cámara no se activa.</li>
-      <li style="display:list-item;border:0">Pasa los libros en el orden del estante. Cada código se acepta solo cuando la cámara lo lee igual dos veces seguidas: pitido agudo y vibración corta = registrado.</li>
-      <li style="display:list-item;border:0">Pitido grave = repetido o código inválido; no se registra. Mira el mensaje y el código grande.</li>
-      <li style="display:list-item;border:0">Al terminar, pulsa <b>Enviar a Claude</b> (copia el entrepaño con su fecha y rango) y pégalo en el chat. El entrepaño queda marcado como enviado.</li>
-      <li style="display:list-item;border:0">La fecha de inventario es siempre 24/11/2026 y viaja en cada envío y archivo.</li>
+      <li style="display:list-item;border:0">Una sola vez: carga el archivo maestro que te envió Claude. Queda guardado en el celular.</li>
+      <li style="display:list-item;border:0">Elige la ubicación, escribe estante y entrepaño, y pulsa <b>Usar este entrepaño</b>.</li>
+      <li style="display:list-item;border:0">Modo <b>Signatura</b>: encierra UNA etiqueta en el marco amarillo, quieta y con luz. Usa “Etiqueta vertical” para lomos delgados. El libro se registra solo cuando la lectura coincide dos veces con el maestro: pitido agudo y destello verde.</li>
+      <li style="display:list-item;border:0">Si la etiqueta no tiene ejemplar o se parece a otra, la página se detiene y te muestra las opciones de Koha. Elige la correcta o pide volver a leer. Nunca adivina.</li>
+      <li style="display:list-item;border:0">Al terminar, pulsa <b>Enviar a Claude</b> y pega el texto en el chat. Lleva la fecha 24/11/2026, el entrepaño, cada código con su signatura y los avisos.</li>
     </ol>
-    <p class="note">Todo se guarda en este celular y navegador. No borres los datos del navegador hasta terminar; descarga un respaldo al final de cada jornada.</p>
-    <div class="grid2">
-      <button class="ghost" id="btnTxt">Descargar .txt para Koha</button>
+    <p class="note">Las listas se guardan solo en este celular. Descarga el respaldo al final de cada jornada.</p>
+    <div class="row">
       <button class="ghost" id="btnBackup">Descargar respaldo completo</button>
       <button class="ghost" id="btnClear">Vaciar este entrepaño</button>
       <button class="ghost" id="btnDel">Eliminar este entrepaño</button>
@@ -142,136 +181,391 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 
 <div id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTxt"><div><p id="dlgTxt"></p><div class="row"><button id="dlgNo">Cancelar</button><button class="pri" id="dlgYes">Sí</button></div></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+/*MATCH-START*/
+// ---- Motor de cruce signatura -> código de barras (archivo maestro de Koha) ----
+const Motor = (() => {
+  // columnas del maestro (TSV): barcode, callnumber, copy, enum, location, ccode, itype, lost, withdrawn, notforloan, year, title
+  let filas = [];            // objetos ítem
+  let porCodigo = new Map(); // barcode -> ítem
+  let porUbic = new Map();   // location -> {grupos: Map(clave -> [ítems]), porClase: Map(clase3 -> [claves])}
+  let meta = { fecha: '', total: 0 };
+
+  const normCN = s => String(s || '').toUpperCase().replace(/[\/\\|_]/g, ' ').replace(/\s+/g, '').replace(/,/g, '.');
+  function parseCopia(copy, en) {
+    const t = (String(copy || '') + ' ' + String(en || '')).toUpperCase();
+    const e = t.match(/E\s*\.?\s*(\d{1,3})/); const v = t.match(/V\s*\.?\s*(\d{1,3})/);
+    return { e: e ? +e[1] : null, v: v ? +v[1] : null };
+  }
+  // orden aproximado Dewey + Cutter, para detectar desorden
+  function claveOrden(cn) {
+    const s = String(cn || '').toUpperCase().trim();
+    const m = s.match(/^(\d{1,3})(?:\.(\d+))?\s*(.*)$/);
+    if (!m) return 'Z' + s;
+    const num = m[1].padStart(3, '0') + '.' + (m[2] || '').padEnd(12, '0');
+    return num + ' ' + m[3].replace(/\s+/g, ' ');
+  }
+
+  function cargar(tsv) {
+    filas = []; porCodigo = new Map(); porUbic = new Map();
+    const lineas = tsv.split(/\r?\n/);
+    let i0 = 0;
+    if (lineas[0] && lineas[0].startsWith('#')) { const m = lineas[0].match(/fecha=([^\s;]+)/); meta.fecha = m ? m[1] : ''; i0 = 1; }
+    if (lineas[i0] && /^barcode\t/i.test(lineas[i0])) i0++;
+    for (let i = i0; i < lineas.length; i++) {
+      const c = lineas[i].split('\t'); if (c.length < 12 || !c[0]) continue;
+      const it = { codigo: c[0], cn: c[1], copia: c[2], enum: c[3], ubic: c[4] || '(sin ubicación)', ccode: c[5], tipo: c[6],
+        perdido: c[7] !== '0' && c[7] !== '', retirado: c[8] !== '0' && c[8] !== '', nopres: c[9], anio: c[10], titulo: c[11] };
+      const pc = parseCopia(it.copia, it.enum); it.e = pc.e; it.v = pc.v;
+      it.clave = normCN(it.cn);
+      filas.push(it); porCodigo.set(it.codigo.toUpperCase(), it);
+      if (!it.clave) continue;
+      let u = porUbic.get(it.ubic); if (!u) { u = { grupos: new Map(), porClase: new Map() }; porUbic.set(it.ubic, u); }
+      let g = u.grupos.get(it.clave); if (!g) { g = []; u.grupos.set(it.clave, g); const k3 = it.clave.slice(0, 3); if (!u.porClase.has(k3)) u.porClase.set(k3, []); u.porClase.get(k3).push(it.clave); }
+      g.push(it);
+    }
+    meta.total = filas.length;
+    return meta;
+  }
+  const ubicaciones = () => [...porUbic.entries()].map(([k, v]) => [k, [...v.grupos.values()].reduce((s, g) => s + g.length, 0)]).sort((a, b) => b[1] - a[1]);
+  const buscarCodigo = c => porCodigo.get(String(c || '').toUpperCase()) || null;
+
+  // ---- lectura OCR ----
+  // arregla confusiones típicas dentro de la parte numérica
+  const aDig = s => s.replace(/[OQD]/g, '0').replace(/[IL|!]/g, '1');
+  function lecturaDe(texto) {
+    let t = String(texto || '').toUpperCase().replace(/[“”"'`´]/g, '').replace(/[\/\\|_]/g, ' ').replace(/,/g, '.').replace(/[ \t]+/g, ' ');
+    const plano = t.replace(/\s+/g, '');
+    // ejemplar, volumen, año: buscar en el texto con espacios
+    const e = t.match(/\b(?:E|EJ|C)\s*\.\s*([0-9OIL]{1,3})\b/) || t.match(/(?:^|\s)(?:E|EJ)\s?([0-9IL]{1,2})(?=\s|$)/);
+    const v = t.match(/\b(?:V|VOL|T)\s*\.\s*([0-9OIL]{1,3})\b/);
+    const anio = t.match(/\b(1[89]\d\d|20[0-4]\d)\b/);
+    return { t, plano, e: e ? +aDig(e[1]) : null, v: v ? +aDig(v[1]) : null, anio: anio ? anio[1] : null };
+  }
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let best = i;
+      for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); if (cur[j] < best) best = cur[j]; }
+      if (best > max) return max + 1; prev = cur;
+    }
+    return prev[b.length];
+  }
+  // forma canónica: iguala caracteres que el OCR confunde (O/0, I/L/1, S/5, B/8, Z/2, G/6)
+  const canon = s => s.replace(/[OQD]/g, '0').replace(/[IL|!]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/G/g, '6');
+  function clavesEn(lec, ubic) {
+    const u = porUbic.get(ubic); if (!u) return { exactas: [], cercanas: [] };
+    const plano = lec.plano, pc = canon(plano);
+    const clases = new Set((pc.match(/\d{3}/g) || []));
+    const cand = []; for (const k3 of clases) for (const cl of (u.porClase.get(k3) || [])) cand.push(cl);
+    const masLargas = a => a.filter(x => !a.some(y => y !== x && y.includes(x)));
+    // 1) idéntica en el texto leído
+    let ex = masLargas(cand.filter(cl => plano.includes(cl)));
+    // 2) idéntica salvo confusiones típicas del OCR
+    if (!ex.length) ex = masLargas(cand.filter(cl => pc.includes(canon(cl))));
+    let cercanas = [];
+    if (!ex.length) {
+      for (const cl of cand) {
+        const cc = canon(cl), k3 = cc.slice(0, 3); let pos = pc.indexOf(k3), best = 9;
+        while (pos >= 0) { best = Math.min(best, lev(pc.slice(pos, pos + cc.length), cc, 2), lev(pc.slice(pos, pos + cc.length + 1), cc, 2), lev(pc.slice(pos, pos + cc.length - 1), cc, 2)); pos = pc.indexOf(k3, pos + 1); }
+        if (best <= 2) cercanas.push([cl, best]);
+      }
+      cercanas.sort((a, b) => a[1] - b[1]); const d0 = cercanas.length ? cercanas[0][1] : 9;
+      cercanas = cercanas.filter(x => x[1] === d0).slice(0, 6).map(x => x[0]);
+    }
+    return { exactas: ex, cercanas };
+  }
+  function filtrar(g, lec) {
+    if (lec.anio && g.some(x => x.anio === lec.anio) && g.some(x => x.anio !== lec.anio)) g = g.filter(x => x.anio === lec.anio);
+    if (lec.v != null && g.some(x => x.v != null)) { const gv = g.filter(x => x.v === lec.v); if (gv.length) g = gv; }
+    if (lec.e != null) { const ge = g.filter(x => (x.e == null ? 1 : x.e) === lec.e); if (ge.length) g = ge; }
+    return g;
+  }
+  // misma signatura registrada en Koha con otra ubicación
+  function enOtras(lec, ubic) {
+    const out = [];
+    for (const [k, u] of porUbic) { if (k === ubic) continue; const { exactas } = clavesEn(lec, k); for (const cl of exactas) out.push(...filtrar(u.grupos.get(cl).slice(), lec)); }
+    return out;
+  }
+  // resuelve una lectura a ítems; registrados = Set de códigos ya leídos
+  function resolver(texto, ubic, registrados) {
+    const lec = lecturaDe(texto);
+    const u = porUbic.get(ubic);
+    if (!u) return { estado: 'sin-maestro', lec };
+    const { exactas, cercanas } = clavesEn(lec, ubic);
+    if (!exactas.length) {
+      const otras = enOtras(lec, ubic);
+      if (otras.length) return { estado: 'dudoso', motivo: `En Koha esta signatura no figura en ${ubic}, sino en: ${[...new Set(otras.map(x => x.ubic))].join(', ')}`, lec, opciones: otras };
+      if (!cercanas.length) return { estado: 'nada', lec };
+      const opciones = filtrar(cercanas.flatMap(cl => u.grupos.get(cl)), lec);
+      return { estado: 'dudoso', motivo: 'Signatura parecida, no idéntica', lec, opciones };
+    }
+    if (exactas.length > 1) return { estado: 'dudoso', motivo: 'Se leyeron varias signaturas', lec, opciones: exactas.flatMap(cl => u.grupos.get(cl)) };
+    const g0 = u.grupos.get(exactas[0]);
+    if (lec.e != null && !g0.some(x => (x.e == null ? 1 : x.e) === lec.e)) { const otras = enOtras(lec, ubic).filter(x => (x.e == null ? 1 : x.e) === lec.e); return { estado: 'dudoso', motivo: otras.length ? `El ejemplar e.${lec.e} figura en Koha en ${otras.map(x => x.ubic + (x.perdido ? ' (perdido)' : '')).join(', ')}` : `Koha no tiene el ejemplar e.${lec.e} de esta signatura en ${ubic}`, lec, opciones: otras.length ? otras : g0 }; }
+    if (lec.v != null && g0.some(x => x.v != null) && !g0.some(x => x.v === lec.v)) return { estado: 'dudoso', motivo: `Koha no tiene el volumen v.${lec.v} de esta signatura en ${ubic}`, lec, opciones: g0 };
+    const g = filtrar(g0.slice(), lec);
+    if (g.length === 1) return { estado: 'ok', item: g[0], lec };
+    const libres = g.filter(x => !registrados.has(x.codigo));
+    return { estado: 'ambiguo', motivo: lec.e == null ? 'La etiqueta no muestra ejemplar y hay varias copias' : 'Hay varias copias con los mismos datos', lec, opciones: g, libres };
+  }
+  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, get meta() { return meta; }, get total() { return filas.length; } };
+})();
+/*MATCH-END*/
+
+</script>
 <script>
 {
 const FECHA_INV='2026-11-24', FECHA_TXT='24/11/2026';
-const PATRON=/^\d{7}$/;          // código de barras UAO: 7 dígitos
-const PERDIDO=/^\d{7}-P$/i;      // ítem marcado como perdido en Koha
-const KEY='crai-inventario-v2';
+const KEY='crai-inventario-v3';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-// Estado: {tramos:{id:{ubic,est,ent,sig1,sig2,codes:[],enviado:null|iso,creado}}, cur:id}
-let st={tramos:{},cur:''};
-let almacen=true;
+// ---------- estado ----------
+// tramos: id -> {ubic, est, ent, items:[{codigo,cn,copia,titulo,flags:[]}], enviado, creado}
+let st={tramos:{},cur:''};let almacen=true;
 try{const r=localStorage.getItem(KEY);if(r)st=JSON.parse(r);if(!st||!st.tramos)st={tramos:{},cur:''}}catch(e){almacen=false}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){almacen=false;aviso('Este navegador no está guardando los datos. No cierres la página y descarga el respaldo con frecuencia.')}}
 function aviso(t){const a=$('aviso');a.textContent=t;a.style.display=t?'block':'none'}
-
 const T=()=>st.tramos[st.cur]||null;
 const nombreT=t=>t?`${t.ubic} · Estante ${t.est} · Entrepaño ${t.ent}`:'';
-const idT=(u,e,n)=>[u,e,n].map(x=>x.trim().toLowerCase()).join('|');
-function dondeEsta(code){for(const [id,t] of Object.entries(st.tramos)){if(t.codes.includes(code))return id}return null}
+const sigDe=it=>(it.cn||'(sin signatura)')+(it.copia?' '+it.copia:'');
+function dondeEsta(cod){for(const [id,t] of Object.entries(st.tramos))if(t.items.some(x=>x.codigo===cod))return id;return null}
 
+// ---------- maestro en IndexedDB ----------
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('crai-inv',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function guardarMaestro(txt){const db=await idb();return new Promise((res,rej)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(txt,'maestro');tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
+async function leerMaestro(){const db=await idb();return new Promise(res=>{const tx=db.transaction('kv','readonly');const q=tx.objectStore('kv').get('maestro');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}
+let hayMaestro=false;
+function pintarMaestro(){
+  if(!hayMaestro){$('mEstado').innerHTML='Archivo maestro: <b class="no">no cargado</b>';$('ubic').innerHTML='<option value="">— carga el maestro —</option>';return}
+  const m=Motor.meta;$('mEstado').innerHTML=`Maestro: <b class="ok">${Motor.total.toLocaleString('es-CO')} ítems</b>${m.fecha?` · Koha ${esc(m.fecha)}`:''}`;
+  const t=T();const prev=$('ubic').value||(t&&t.ubic)||'';
+  $('ubic').innerHTML=Motor.ubicaciones().map(([u,n])=>`<option value="${esc(u)}"${u===prev?' selected':''}>${esc(u)} (${n.toLocaleString('es-CO')})</option>`).join('');
+}
+async function iniciarMaestro(){try{const txt=await leerMaestro();if(txt){Motor.cargar(txt);hayMaestro=Motor.total>0}}catch(e){}pintarMaestro();render()}
+$('btnM').onclick=()=>$('mFile').click();
+$('mFile').onchange=async()=>{const f=$('mFile').files[0];if(!f)return;msg('Cargando maestro…','');
+  try{const txt=await f.text();Motor.cargar(txt);if(!Motor.total)throw new Error('vacío');hayMaestro=true;await guardarMaestro(txt);pintarMaestro();render();msg(`Maestro cargado: ${Motor.total.toLocaleString('es-CO')} ítems.`,'ok')}
+  catch(e){msg('Ese archivo no es el maestro de Koha. Usa el archivo .tsv que te envió Claude.','bad')}$('mFile').value=''};
+
+// ---------- interfaz ----------
 function render(){
   const t=T();
-  $('tramoname').innerHTML=t?`Activo: ${esc(nombreT(t))}${t.enviado?'<span class="estado e">Enviado</span>':'<span class="estado p">Pendiente</span>'}${(t.sig1||t.sig2)?`<div class="note">Rango: ${esc(t.sig1||'¿?')} – ${esc(t.sig2||'¿?')}</div>`:''}`:'<span class="note">Ningún entrepaño activo.</span>';
-  const codes=t?t.codes:[];
-  $('num').textContent=codes.length;
-  $('lastcode').textContent=codes.length?codes[codes.length-1]:'—';
-  $('items').innerHTML=codes.map((c,i)=>`<li><span class="n">${i+1}</span><code>${esc(c)}</code>${PERDIDO.test(c)?'<span class="flag">perdido en Koha</span>':''}<button data-i="${i}" aria-label="Quitar ${esc(c)}">Quitar</button></li>`).reverse().join('')||'<li class="note" style="border:0">Aún no hay códigos.</li>';
+  $('tramoname').innerHTML=t?`Activo: ${esc(nombreT(t))}${t.enviado?'<span class="estado e">Enviado</span>':'<span class="estado p">Pendiente</span>'}`:'<span class="note">Ningún entrepaño activo.</span>';
+  const its=t?t.items:[];
+  $('num').textContent=its.length;
+  const u=its[its.length-1];
+  $('lSig').textContent=u?sigDe(u):'—';$('lCod').textContent=u?u.codigo:'';$('lTit').textContent=u?u.titulo:'';
+  $('items').innerHTML=its.map((x,i)=>`<li><span class="n">${i+1}</span><div class="d"><code>${esc(sigDe(x))}</code><small>${esc(x.codigo)} · ${esc(x.titulo||'')}</small>${(x.flags||[]).map(f=>`<span class="flag">${esc(f)}</span>`).join('')}</div><button data-i="${i}" aria-label="Quitar ${esc(x.codigo)}">Quitar</button></li>`).reverse().join('')||'<li class="note" style="border:0">Aún no hay libros.</li>';
   const ids=Object.keys(st.tramos).sort((a,b)=>st.tramos[a].creado<st.tramos[b].creado?1:-1);
-  $('lista').innerHTML='<option value="">— elegir —</option>'+ids.map(id=>{const x=st.tramos[id];return `<option value="${esc(id)}"${id===st.cur?' selected':''}>${esc(nombreT(x))} (${x.codes.length})${x.enviado?' ✓':''}</option>`}).join('');
-  if(t){$('ubic').value=t.ubic;$('est').value=t.est;$('ent').value=t.ent;$('sig1').value=t.sig1||'';$('sig2').value=t.sig2||''}
-  const on=!!t;['btnUndo','btnSend','btnAdd','manual','btnTxt','btnClear','btnDel'].forEach(i=>$(i).disabled=!on);
+  $('lista').innerHTML='<option value="">— elegir —</option>'+ids.map(id=>{const x=st.tramos[id];return `<option value="${esc(id)}"${id===st.cur?' selected':''}>${esc(nombreT(x))} (${x.items.length})${x.enviado?' ✓':''}</option>`}).join('');
+  if(t){if([...$('ubic').options].some(o=>o.value===t.ubic))$('ubic').value=t.ubic;$('est').value=t.est;$('ent').value=t.ent}
+  const on=!!t;['btnUndo','btnSend','btnAdd','manual','btnClear','btnDel'].forEach(i=>$(i).disabled=!on);
 }
 function msg(t,cls){const m=$('msg');m.textContent=t;m.className=cls||''}
-
 let actx=null;
 function sonido(ok){
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=ok?1300:330;g.gain.value=.18;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+(ok?.09:.28))}catch(e){}
   try{navigator.vibrate&&navigator.vibrate(ok?60:[60,60,60])}catch(e){}
   const f=$('flash');f.style.background=ok?'rgba(40,180,90,.38)':'rgba(220,60,40,.38)';f.style.opacity=1;setTimeout(()=>f.style.opacity=0,200);
 }
-
 let pendiente=null,cancelar=null;
 function preguntar(t,fn,si,no){$('dlgTxt').textContent=t;$('dlgYes').textContent=si||'Sí';pendiente=fn;cancelar=no||null;$('dlg').style.display='grid';$('dlgNo').focus()}
 $('dlgNo').onclick=()=>{$('dlg').style.display='none';const f=cancelar;pendiente=null;cancelar=null;f&&f()};
 $('dlgYes').onclick=()=>{$('dlg').style.display='none';const f=pendiente;pendiente=null;cancelar=null;f&&f()};
 
-function registrar(code,origen){
-  const t=T();
-  if(!t){msg('Primero elige el entrepaño.','bad');sonido(false);return}
-  code=String(code||'').trim().toUpperCase().replace(/\s+/g,'');
-  if(!code)return;
-  if(!PATRON.test(code)&&!PERDIDO.test(code)){msg(`Código inválido: ${code}. Debe tener 7 dígitos. No se registró.`,'bad');sonido(false);return}
-  if(t.codes.includes(code)){msg(`Ya estaba en este entrepaño: ${code}`,'dup');sonido(false);return}
-  const otro=dondeEsta(code);
-  const hacer=()=>{if(otro&&otro!==st.cur){const o=st.tramos[otro];o.codes=o.codes.filter(c=>c!==code);o.enviado=null}
-    if(t.enviado){t.enviado=null}
-    t.codes.push(code);save();render();
-    msg(`${origen==='manual'?'Agregado':'Registrado'}: ${code}${PERDIDO.test(code)?' · figura como perdido en Koha, avísale a Claude':''}`,PERDIDO.test(code)?'dup':'ok');sonido(true)};
-  if(otro&&otro!==st.cur){pausa=true;sonido(false);preguntar(`El código ${code} ya está registrado en:\n${nombreT(st.tramos[otro])}\n\n¿Moverlo a este entrepaño? Hazlo solo si el libro de verdad está aquí.`,()=>{hacer();pausa=false},'Mover aquí',()=>{pausa=false;msg('No se movió '+code,'dup')});return}
-  if(t.enviado){pausa=true;preguntar(`Este entrepaño ya se envió a Claude. Si agregas ${code}, quedará pendiente y tendrás que enviarlo de nuevo. ¿Agregar?`,()=>{hacer();pausa=false},'Agregar',()=>{pausa=false});return}
-  hacer();
+// ---------- registrar ----------
+let pausa=false;
+function registrar(it,extra){
+  const t=T();if(!t){msg('Primero elige el entrepaño.','bad');sonido(false);return false}
+  if(t.items.some(x=>x.codigo===it.codigo)){if(ultimoReg!==it.codigo){msg(`Ya estaba en este entrepaño: ${sigDe(it)}`,'dup');sonido(false)}return false}
+  const flags=[...(extra||[])];
+  if(it.ubic!==t.ubic)flags.push(`En Koha figura en: ${it.ubic}`);
+  if(it.perdido)flags.push('En Koha figura como perdido');
+  if(it.retirado)flags.push('En Koha figura como retirado');
+  const prev=t.items[t.items.length-1];
+  if(prev&&Motor.claveOrden(prev.cn)>Motor.claveOrden(it.cn))flags.push('Posible desorden: va antes que el anterior');
+  const otro=dondeEsta(it.codigo);
+  const hacer=()=>{
+    if(otro&&otro!==st.cur){const o=st.tramos[otro];o.items=o.items.filter(x=>x.codigo!==it.codigo);o.enviado=null}
+    t.enviado=null;t.items.push({codigo:it.codigo,cn:it.cn,copia:it.copia,titulo:it.titulo,flags});save();render();ultimoReg=it.codigo;
+    msg(`Registrado: ${sigDe(it)}${flags.length?' · '+flags.join(' · '):''}`,flags.length?'dup':'ok');sonido(true)};
+  if(otro&&otro!==st.cur){pausa=true;sonido(false);preguntar(`${sigDe(it)} (${it.codigo}) ya está registrado en:\n${nombreT(st.tramos[otro])}\n\n¿Moverlo a este entrepaño? Hazlo solo si el libro de verdad está aquí.`,()=>{hacer();pausa=false},'Mover aquí',()=>{pausa=false;msg('No se movió.','dup')});return false}
+  hacer();return true;
 }
+let ultimoReg='';
 
-// Lectura confirmada: el mismo código en dos lecturas seguidas
-let ultimo='',ultimoT=0,bloqueo='',bloqueoT=0,pausa=false;
-function onScan(text){
-  if(pausa)return;
-  const now=Date.now();
-  if(text===bloqueo&&now-bloqueoT<2500)return;
-  if(text===ultimo&&now-ultimoT<1500){bloqueo=text;bloqueoT=now;ultimo='';registrar(text,'cam')}
-  else{ultimo=text;ultimoT=now}
+// ---------- decisiones ----------
+function mostrarDecision(r){
+  pausa=true;sonido(false);
+  const reg=new Set((T()?.items||[]).map(x=>x.codigo));
+  $('dMot').textContent=r.motivo||'Revisa esta lectura';
+  $('dLei').textContent='Leído: '+(r.lec?.t||'').trim().replace(/\s+/g,' ').slice(0,80);
+  let ops=(r.opciones||[]).slice(0,8).map((it,i)=>`<button class="op" data-k="${i}"${reg.has(it.codigo)?' disabled':''}><b>${esc(sigDe(it))}</b> · ${esc(it.codigo)}${it.anio?' · '+esc(it.anio):''}<small>${esc(it.titulo||'')} · ${esc(it.ubic)}${it.perdido?' · PERDIDO':''}${reg.has(it.codigo)?' · ya registrado':''}</small></button>`).join('');
+  if(r.estado==='ambiguo'&&r.libres&&r.libres.length)ops+=`<button class="op" data-k="libre"><b>Asignar al siguiente ejemplar no registrado</b><small>${esc(sigDe(r.libres[0]))} · ${esc(r.libres[0].codigo)} — quedará marcado como deducido</small></button>`;
+  $('dOps').innerHTML=ops;$('dOps').dataset.json='';decision=r;
+  $('decide').style.display='block';$('decide').scrollIntoView({block:'nearest',behavior:'smooth'});
 }
+let decision=null;
+function cerrarDecision(){$('decide').style.display='none';decision=null;pausa=false;ultimaClave='';}
+$('dOps').addEventListener('click',e=>{const b=e.target.closest('button.op');if(!b||!decision)return;const k=b.dataset.k;
+  if(k==='libre'){registrar(decision.libres[0],['Ejemplar deducido: la etiqueta no muestra número'])}
+  else{const it=decision.opciones[+k];const fl=decision.estado==='dudoso'?['Confirmado a mano: '+(decision.motivo||'')]:[];registrar(it,fl)}
+  cerrarDecision()});
+$('dNo').onclick=()=>{cerrarDecision();msg('Vuelve a apuntar a la etiqueta.','')};
 
-let scanner=null,activo=false,torch=false,lock=null;
+// ---------- OCR de signaturas ----------
+let modo='sig',ori='h',stream=null,activo=false,worker=null,ocupado=false,ultimaClave='',ultimaVez=0,track=null,torch=false,lock=null,scanner=null;
 async function wake(on){try{if(on&&'wakeLock' in navigator){lock=await navigator.wakeLock.request('screen')}else if(lock){await lock.release();lock=null}}catch(e){}}
+async function prepararOCR(){
+  if(worker)return worker;
+  if(!window.Tesseract)throw new Error('sin-ocr');
+  msg('Preparando el lector de signaturas (solo la primera vez tarda)…','');
+  worker=await Tesseract.createWorker('eng',1);
+  await worker.setParameters({tessedit_char_whitelist:'0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz/- ',tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+  return worker;
+}
+const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+function recorte(giro){
+  const v=$('vid'),W=v.videoWidth,H=v.videoHeight;if(!W||!H)return null;
+  const r=ori==='h'?{x:.06,y:.34,w:.88,h:.32}:{x:.34,y:.06,w:.32,h:.88};
+  const sx=r.x*W,sy=r.y*H,sw=r.w*W,sh=r.h*H;
+  const esc2=Math.min(2.2,1400/Math.max(sw,sh));
+  const dw=Math.round(sw*esc2),dh=Math.round(sh*esc2);
+  if(giro){cv.width=dh;cv.height=dw;cx.save();cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2);cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);cx.restore()}
+  else{cv.width=dw;cv.height=dh;cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh)}
+  const im=cx.getImageData(0,0,cv.width,cv.height),d=im.data;let mn=255,mx=0;
+  for(let i=0;i<d.length;i+=4){const g=.3*d[i]+.59*d[i+1]+.11*d[i+2];d[i]=g;if(g<mn)mn=g;if(g>mx)mx=g}
+  const k=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*k));d[i]=d[i+1]=d[i+2]=g}
+  cx.putImageData(im,0,0);return cv;
+}
+async function cicloOCR(){
+  if(!activo||modo!=='sig')return;
+  if(pausa||ocupado||!T()){setTimeout(cicloOCR,250);return}
+  ocupado=true;
+  try{
+    const giros=ori==='h'?[0]:[1,-1];let mejor=null;
+    for(const g of giros){const c=recorte(g);if(!c)break;const {data}=await worker.recognize(c);
+      const r=Motor.resolver(data.text,T().ubic,new Set(T().items.map(x=>x.codigo)));
+      $('ocrtxt').textContent=data.text.trim().slice(0,120)||'…';
+      if(r.estado!=='nada'){mejor=r;break}}
+    if(mejor)procesar(mejor);else ultimaClave='';
+  }catch(e){msg('Error leyendo: '+(e.message||e),'bad')}
+  ocupado=false;setTimeout(cicloOCR,120);
+}
+function claveRes(r){return r.estado+'|'+(r.item?r.item.codigo:(r.opciones||[]).map(x=>x.codigo).join(','))}
+function procesar(r){
+  const k=claveRes(r),now=Date.now();
+  if(r.estado==='ok'&&r.item.codigo===ultimoReg&&now-ultimaVez<4000){ultimaVez=now;return}
+  if(k!==ultimaClave){ultimaClave=k;return}           // exige dos lecturas iguales seguidas
+  ultimaClave='';ultimaVez=now;
+  if(r.estado==='ok'){if(T().items.some(x=>x.codigo===r.item.codigo)){if(r.item.codigo!==ultimoReg){msg(`Ya estaba: ${sigDe(r.item)}`,'dup')}return}registrar(r.item,[])}
+  else mostrarDecision(r);
+}
+
+// ---------- cámara ----------
 async function camara(){
   try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume()}catch(e){}
-  if(activo){try{await scanner.stop()}catch(e){}activo=false;wake(false);$('btnCam').textContent='Iniciar cámara';$('camoff').style.display='';$('btnTorch').disabled=true;msg('Cámara detenida.','');return}
-  if(!T()){msg('Primero escribe el entrepaño y pulsa “Usar este entrepaño”.','bad');sonido(false);$('ubic').focus();return}
+  if(activo){await apagar();msg('Cámara detenida.','');return}
+  if(!T()){msg('Primero elige el entrepaño y pulsa “Usar este entrepaño”.','bad');sonido(false);return}
   if(!window.isSecureContext){msg('La cámara solo funciona si la página se abre con https.','bad');return}
-  if(!window.Html5Qrcode){msg('No cargó el lector. Revisa la conexión a internet y recarga.','bad');return}
-  const F=Html5QrcodeSupportedFormats;
-  scanner=scanner||new Html5Qrcode('reader',{verbose:false,formatsToSupport:[F.CODE_128,F.CODE_39,F.CODE_93,F.CODABAR,F.ITF,F.EAN_13,F.EAN_8,F.UPC_A],experimentalFeatures:{useBarCodeDetectorIfSupported:true}});
-  try{
-    await scanner.start({facingMode:'environment'},{fps:12,qrbox:(w,h)=>({width:Math.floor(w*.88),height:Math.max(80,Math.floor(Math.min(h,w)*.32))}),aspectRatio:1.333},onScan,()=>{});
-    activo=true;wake(true);$('btnCam').textContent='Detener cámara';$('camoff').style.display='none';
+  if(modo==='sig'){
+    if(!hayMaestro){msg('Para leer signaturas primero carga el archivo maestro.','bad');sonido(false);return}
+    try{await prepararOCR()}catch(e){msg('No cargó el lector de signaturas. Revisa la conexión a internet y recarga.','bad');return}
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false})}
+    catch(e){msg('No se pudo abrir la cámara. Permite el acceso a la cámara para esta página.','bad');return}
+    const v=$('vid');v.srcObject=stream;v.classList.remove('hidden');await v.play();track=stream.getVideoTracks()[0];
+    $('guia').style.display='block';$('ocrtxt').style.display='block';$('camoff').style.display='none';
+    try{const cap=track.getCapabilities?track.getCapabilities():{};$('btnTorch').disabled=!cap.torch}catch(e){}
+    activo=true;wake(true);$('btnCam').textContent='Detener cámara';msg('Encierra una etiqueta en el marco amarillo.','');cicloOCR();
+  }else{
+    if(!window.Html5Qrcode){msg('No cargó el lector de códigos. Revisa la conexión y recarga.','bad');return}
+    const F=Html5QrcodeSupportedFormats;
+    scanner=scanner||new Html5Qrcode('reader',{verbose:false,formatsToSupport:[F.CODE_128,F.CODE_39,F.CODE_93,F.CODABAR,F.ITF,F.EAN_13,F.EAN_8,F.UPC_A],experimentalFeatures:{useBarCodeDetectorIfSupported:true}});
+    try{await scanner.start({facingMode:'environment'},{fps:12,qrbox:(w,h)=>({width:Math.floor(w*.88),height:Math.max(80,Math.floor(Math.min(h,w)*.32))}),aspectRatio:1.333},onCodigo,()=>{})}
+    catch(e){msg('No se pudo abrir la cámara. Permite el acceso a la cámara para esta página.','bad');return}
+    $('camoff').style.display='none';activo=true;wake(true);$('btnCam').textContent='Detener cámara';
     try{const cap=scanner.getRunningTrackCapabilities();$('btnTorch').disabled=!(cap&&cap.torch)}catch(e){}
-    msg('Cámara lista. Apunta al código de barras.','');
-  }catch(e){msg('No se pudo abrir la cámara. Permite el acceso a la cámara para esta página en el navegador y vuelve a intentar.','bad')}
+    msg('Apunta al código de barras.','');
+  }
 }
-async function linterna(){if(!scanner||!activo)return;torch=!torch;try{await scanner.applyVideoConstraints({advanced:[{torch}]});$('btnTorch').textContent=torch?'Apagar linterna':'Linterna'}catch(e){torch=!torch;msg('Este celular no permite la linterna desde el navegador.','dup')}}
+async function apagar(){
+  activo=false;wake(false);
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;track=null}
+  if(scanner){try{await scanner.stop()}catch(e){}}
+  $('vid').classList.add('hidden');$('guia').style.display='none';$('ocrtxt').style.display='none';$('camoff').style.display='';
+  $('btnCam').textContent='Iniciar cámara';$('btnTorch').disabled=true;torch=false;$('btnTorch').textContent='Linterna';
+}
+async function linterna(){if(!activo)return;torch=!torch;
+  try{if(modo==='sig'&&track)await track.applyConstraints({advanced:[{torch}]});else if(scanner)await scanner.applyVideoConstraints({advanced:[{torch}]});$('btnTorch').textContent=torch?'Apagar linterna':'Linterna'}
+  catch(e){torch=!torch;msg('Este celular no permite la linterna desde el navegador.','dup')}}
+let cUlt='',cT=0,cBloq='',cBloqT=0;
+function onCodigo(text){
+  if(pausa)return;const now=Date.now();
+  if(text===cBloq&&now-cBloqT<2500)return;
+  if(!(text===cUlt&&now-cT<1500)){cUlt=text;cT=now;return}
+  cBloq=text;cBloqT=now;cUlt='';porCodigo(text,false);
+}
+function porCodigo(code,manual){
+  code=String(code||'').trim().toUpperCase().replace(/\s+/g,'');
+  if(!/^\d{7}(-P)?$/.test(code)){msg(`Código inválido: ${code}. Debe tener 7 dígitos.`,'bad');sonido(false);return}
+  const it=hayMaestro?Motor.buscarCodigo(code):null;
+  if(hayMaestro&&!it){msg(`El código ${code} no está en el maestro de Koha. No se registró.`,'bad');sonido(false);return}
+  registrar(it||{codigo:code,cn:'',copia:'',titulo:'',ubic:T()?T().ubic:''},manual?['Escrito a mano']:[]);
+}
+function setModo(m){if(modo===m)return;const fue=activo;apagar().then(()=>{modo=m;$('mSig').setAttribute('aria-pressed',m==='sig');$('mCod').setAttribute('aria-pressed',m==='cod');$('oriBox').classList.toggle('hidden',m!=='sig');if(fue)camara()})}
+function setOri(o){ori=o;$('oH').setAttribute('aria-pressed',o==='h');$('oV').setAttribute('aria-pressed',o==='v');$('guia').className=o;ultimaClave=''}
 
+// ---------- entrepaño y envío ----------
 function fijar(){
-  const u=$('ubic').value.trim(),e=$('est').value.trim(),n=$('ent').value.trim();
-  if(!u||!e||!n){msg('Completa ubicación, estante y entrepaño.','bad');sonido(false);return}
-  const id=idT(u,e,n);
-  if(!st.tramos[id])st.tramos[id]={ubic:u,est:e,ent:n,sig1:'',sig2:'',codes:[],enviado:null,creado:new Date().toISOString()};
-  const t=st.tramos[id];t.sig1=$('sig1').value.trim();t.sig2=$('sig2').value.trim();
-  st.cur=id;save();render();ultimo='';bloqueo='';
-  msg((t.codes.length?'Retomaste: ':'Entrepaño listo: ')+nombreT(t),'ok');
+  const u=$('ubic').value,e=$('est').value.trim(),n=$('ent').value.trim();
+  if(!u){msg('Carga el maestro y elige la ubicación.','bad');sonido(false);return}
+  if(!e||!n){msg('Escribe estante y entrepaño.','bad');sonido(false);return}
+  const id=[u,e,n].map(x=>x.trim().toLowerCase()).join('|');
+  if(!st.tramos[id])st.tramos[id]={ubic:u,est:e,ent:n,items:[],enviado:null,creado:new Date().toISOString()};
+  st.cur=id;save();render();ultimaClave='';ultimoReg='';
+  msg((st.tramos[id].items.length?'Retomaste: ':'Entrepaño listo: ')+nombreT(st.tramos[id]),'ok');
 }
-
-function textoClaude(t){return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Tramo: ${nombreT(t)}`,`Rango de signaturas: ${t.sig1||'no indicado'} – ${t.sig2||'no indicado'}`,`Cantidad: ${t.codes.length}`,`Códigos:`,...t.codes].join('\n')}
+function textoClaude(t){
+  const its=t.items,ord=its.filter(x=>x.cn).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);
+  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango leído: ${ord[0]||'?'} – ${ord[ord.length-1]||'?'}`,`Cantidad: ${its.length}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
+    ...its.map(x=>`${x.codigo} | ${sigDe(x)}${x.flags&&x.flags.length?' | '+x.flags.join('; '):''}`)].join('\n');
+}
 function archivo(base){return (`inventario_${FECHA_INV}_${base}`).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-')+'.txt'}
 function descargar(n,c){const b=new Blob([c],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
 async function copiar(txt){try{await navigator.clipboard.writeText(txt);return true}catch(e){const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();return ok}}
 
 $('btnFijar').onclick=fijar;
-$('lista').onchange=()=>{const v=$('lista').value;if(v&&st.tramos[v]){st.cur=v;save();render();msg('Retomaste: '+nombreT(st.tramos[v]),'ok')}};
-['sig1','sig2'].forEach(i=>$(i).addEventListener('change',()=>{const t=T();if(t&&idT($('ubic').value,$('est').value,$('ent').value)===st.cur){t[i]=$(i).value.trim();save();render()}}));
-$('btnCam').onclick=camara;
-$('btnTorch').onclick=linterna;
-$('btnAdd').onclick=()=>{const v=$('manual').value;if(!v.trim())return;const c=v.trim().toUpperCase();preguntar(`¿Registrar a mano el código ${c}?\nVerifica cada dígito con la etiqueta del libro.`,()=>{registrar(c,'manual');$('manual').value='';$('manual').focus()},'Registrar')};
+$('lista').onchange=()=>{const v=$('lista').value;if(v&&st.tramos[v]){st.cur=v;save();render();ultimaClave='';ultimoReg='';msg('Retomaste: '+nombreT(st.tramos[v]),'ok')}};
+$('btnCam').onclick=camara;$('btnTorch').onclick=linterna;
+$('mSig').onclick=()=>setModo('sig');$('mCod').onclick=()=>setModo('cod');
+$('oH').onclick=()=>setOri('h');$('oV').onclick=()=>setOri('v');
+$('btnAdd').onclick=()=>{const v=$('manual').value.trim();if(!v)return;
+  if(/^\d{7}(-P)?$/i.test(v.replace(/\s+/g,''))){porCodigo(v,true)}
+  else{if(!hayMaestro){msg('Para buscar por signatura carga el maestro.','bad');return}
+    const r=Motor.resolver(v,T().ubic,new Set(T().items.map(x=>x.codigo)));
+    if(r.estado==='ok'){preguntar(`¿Registrar ${sigDe(r.item)}?\nCódigo ${r.item.codigo} · ${r.item.titulo}`,()=>registrar(r.item,['Escrito a mano']),'Registrar')}
+    else if(r.estado==='nada'||r.estado==='sin-maestro'){msg('No encontré esa signatura en el maestro para esta ubicación.','bad');sonido(false)}
+    else mostrarDecision(r)}
+  $('manual').value=''};
 $('manual').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('btnAdd').click()}});
-$('items').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;const t=T();const i=+b.dataset.i;const c=t.codes[i];preguntar(`¿Quitar ${c} de este entrepaño?`,()=>{t.codes.splice(i,1);t.enviado=null;save();render();msg('Quitado: '+c,'')},'Quitar')});
-$('btnUndo').onclick=()=>{const t=T();if(!t||!t.codes.length)return;const c=t.codes[t.codes.length-1];preguntar(`¿Deshacer el último código (${c})?`,()=>{t.codes.pop();t.enviado=null;save();render();msg('Deshecho: '+c,'')},'Deshacer')};
-$('btnSend').onclick=async()=>{const t=T();if(!t)return;if(!t.codes.length){msg('Este entrepaño no tiene códigos.','dup');return}
-  if(await copiar(textoClaude(t))){t.enviado=new Date().toISOString();save();render();msg(`Copiado (${t.codes.length} códigos, fecha ${FECHA_TXT}). Pégalo en el chat con Claude.`,'ok')}
-  else{msg('No se pudo copiar. Usa “Descargar .txt para Koha” en el menú de abajo.','bad')}};
-$('btnTxt').onclick=()=>{const t=T();if(!t||!t.codes.length){msg('No hay códigos.','dup');return}descargar(archivo(nombreT(t)),t.codes.join('\n')+'\n');msg('Descargado: '+archivo(nombreT(t)),'ok')};
-$('btnBackup').onclick=()=>{const ids=Object.keys(st.tramos).filter(id=>st.tramos[id].codes.length);if(!ids.length){msg('No hay datos para respaldar.','dup');return}descargar(archivo('respaldo-completo'),ids.map(id=>textoClaude(st.tramos[id])).join('\n\n')+'\n');msg(`Respaldo descargado: ${ids.length} entrepaños.`,'ok')};
-$('btnClear').onclick=()=>{const t=T();if(!t||!t.codes.length)return;preguntar(`¿Vaciar los ${t.codes.length} códigos de\n${nombreT(t)}?\nNo se puede deshacer.`,()=>{t.codes=[];t.enviado=null;save();render();msg('Entrepaño vaciado.','')},'Vaciar')};
-$('btnDel').onclick=()=>{const t=T();if(!t)return;preguntar(`¿Eliminar por completo\n${nombreT(t)}\ny sus ${t.codes.length} códigos?`,()=>{delete st.tramos[st.cur];st.cur='';save();render();['ubic','est','ent','sig1','sig2'].forEach(i=>$(i).value='');msg('Entrepaño eliminado.','')},'Eliminar')};
+$('items').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;const t=T();const i=+b.dataset.i;const x=t.items[i];preguntar(`¿Quitar ${sigDe(x)} (${x.codigo}) de este entrepaño?`,()=>{t.items.splice(i,1);t.enviado=null;save();render();msg('Quitado: '+x.codigo,'')},'Quitar')});
+$('btnUndo').onclick=()=>{const t=T();if(!t||!t.items.length)return;const x=t.items[t.items.length-1];preguntar(`¿Deshacer el último (${sigDe(x)})?`,()=>{t.items.pop();t.enviado=null;ultimoReg='';save();render();msg('Deshecho: '+x.codigo,'')},'Deshacer')};
+$('btnSend').onclick=async()=>{const t=T();if(!t)return;if(!t.items.length){msg('Este entrepaño no tiene libros.','dup');return}
+  if(await copiar(textoClaude(t))){t.enviado=new Date().toISOString();save();render();msg(`Copiado (${t.items.length} libros, fecha ${FECHA_TXT}). Pégalo en el chat con Claude.`,'ok')}
+  else msg('No se pudo copiar. Descarga el respaldo y envíaselo a Claude.','bad')};
+$('btnBackup').onclick=()=>{const ids=Object.keys(st.tramos).filter(id=>st.tramos[id].items.length);if(!ids.length){msg('No hay datos para respaldar.','dup');return}descargar(archivo('respaldo-completo'),ids.map(id=>textoClaude(st.tramos[id])).join('\n\n')+'\n');msg(`Respaldo descargado: ${ids.length} entrepaños.`,'ok')};
+$('btnClear').onclick=()=>{const t=T();if(!t||!t.items.length)return;preguntar(`¿Vaciar los ${t.items.length} libros de\n${nombreT(t)}?\nNo se puede deshacer.`,()=>{t.items=[];t.enviado=null;save();render();msg('Entrepaño vaciado.','')},'Vaciar')};
+$('btnDel').onclick=()=>{const t=T();if(!t)return;preguntar(`¿Eliminar por completo\n${nombreT(t)}\ny sus ${t.items.length} libros?`,()=>{delete st.tramos[st.cur];st.cur='';save();render();msg('Entrepaño eliminado.','')},'Eliminar')};
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&activo)wake(true)});
-window.addEventListener('beforeunload',e=>{if(Object.values(st.tramos).some(t=>t.codes.length&&!t.enviado)&&!almacen){e.preventDefault();e.returnValue=''}});
-
 if(!window.isSecureContext)aviso('Abre esta página desde su enlace https (GitHub Pages). Así la cámara funciona.');
-render();
+render();iniciarMaestro();
+// para pruebas automáticas
+window.__inv={procesarTexto:(txt)=>{const r=Motor.resolver(txt,T().ubic,new Set(T().items.map(x=>x.codigo)));ultimaClave=claveRes(r);procesar(r);return r.estado}};
 }
 </script>
 </body>
