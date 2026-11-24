@@ -37,6 +37,11 @@ input:focus,button:focus-visible,select:focus{outline:3px solid var(--acc2);outl
 .falta code{font:600 14px ui-monospace,Menlo,monospace}
 .sw{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:6px}
 .sw input{width:22px;height:22px}
+.resumen table{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+.resumen th,.resumen td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right}
+.resumen th:first-child,.resumen td:first-child{text-align:left}
+.resumen tr.cur td{font-weight:700}
+.btns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
 .row>*{flex:1 1 0}
 button{font:inherit;font-size:15px;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--soft);color:var(--ink);cursor:pointer}
@@ -56,9 +61,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #cam video{width:100%;height:auto;display:block}
 #reader{width:100%}
 #reader video{width:100%!important;display:block}
-#guia{position:absolute;border:3px solid #ffd54a;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none;display:none}
-#guia.h{left:6%;width:88%;top:34%;height:32%}
-#guia.v{left:34%;width:32%;top:6%;height:88%}
+#guia{position:absolute;border:4px solid #ffd54a;transition:border-color .15s;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);pointer-events:none;display:none}
+#guia.verde{border-color:#2ecc71!important;box-shadow:0 0 0 9999px rgba(0,0,0,.35),0 0 18px #2ecc71}
+#guia.ambar{border-color:#ff9800!important}
+#guia.h,#guia.verde.h{left:6%;width:88%;top:34%;height:32%}
+#guia.v,#guia.verde.v{left:34%;width:32%;top:6%;height:88%}
 #camoff{color:#ddd;text-align:center;padding:40px 20px;font-size:15px}
 #ocrtxt{position:absolute;left:8px;right:8px;bottom:8px;color:#fff;background:rgba(0,0,0,.55);font:13px/1.3 ui-monospace,Menlo,monospace;padding:4px 8px;border-radius:6px;display:none;white-space:pre-wrap;max-height:4.2em;overflow:hidden}
 #flash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s}
@@ -115,6 +122,11 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     </div>
   </section>
 
+  <section class="box" style="margin-top:10px" aria-label="Quién escanea">
+    <label for="quien">Quién escanea (sale en las listas)</label>
+    <input type="text" id="quien" placeholder="Nombre y apellido" autocomplete="name">
+  </section>
+
   <section class="box" style="margin-top:10px" aria-labelledby="t1">
     <h2 id="t1" style="margin-top:0">1. Estantería y rango</h2>
     <div class="grid">
@@ -156,16 +168,27 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <button id="btnTorch" disabled>Linterna</button>
   </div>
 
-  <div class="last"><div class="sig" id="lSig">—</div><div class="cnt"><b id="num">0</b><span>en este entrepaño</span></div><div class="cod" id="lCod"></div><div class="tit" id="lTit"></div></div>
+  <div class="last"><div class="sig" id="lSig">—</div><div class="cnt"><b id="num">0</b><span>leídos aquí</span></div><div class="cod" id="lCod"></div><div class="tit" id="lTit"></div></div>
   <div id="msg" aria-live="assertive"></div>
   <label class="sw"><input type="checkbox" id="auto" checked> Registro automático (sin confirmar uno por uno; los casos dudosos quedan marcados para revisar)</label>
 
   <section class="prog" aria-label="Avance del rango">
     <div class="cifras"><span>Rango: <b id="pRango">—</b></span></div>
     <div class="barra"><i id="pBarra"></i></div>
-    <div class="cifras"><span>Leídos <b id="pLeidos">0</b> de <b id="pEsp">0</b> esperados</span><span>Faltan <b id="pFaltan">0</b></span><span>Para revisar <b id="pRev">0</b></span></div>
+    <div class="cifras"><span>Leídos <b id="pLeidos">0</b> de <b id="pEsp">0</b> esperados</span><span>Faltan <b id="pFaltan">0</b> ejemplares · <b id="pTit">0</b> títulos sin leer</span><span>Para revisar <b id="pRev">0</b></span></div>
     <div class="row" style="margin-top:8px"><button class="ghost" id="btnRangoLeido">Fijar rango con lo leído</button><button class="ghost" id="btnVerFaltan">Ver faltantes</button></div>
     <ol class="falta hidden" id="faltan"></ol>
+    <div class="btns">
+      <button class="pri" id="btnLista">Descargar lista .txt</button>
+      <button id="btnCompartir">Compartir lista</button>
+      <button class="ghost" id="btnKoha">Códigos para Koha .txt</button>
+      <button class="ghost" id="btnTodas">Lista de todas las estanterías</button>
+    </div>
+  </section>
+
+  <section class="prog resumen" aria-label="Resumen por estantería">
+    <b>Resumen por estantería</b>
+    <div class="scroll"><table><thead><tr><th>Estantería</th><th>Leídos</th><th>Esperados</th><th>Faltan ej.</th><th>Títulos sin leer</th></tr></thead><tbody id="resumen"></tbody></table></div>
   </section>
 
   <div id="decide" role="region" aria-label="Decisión pendiente">
@@ -191,7 +214,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
       <li style="display:list-item;border:0">Elige la ubicación, escribe la estantería (y el entrepaño si quieres) y el rango de signaturas que va en ella. Pulsa <b>Usar este entrepaño</b>: verás cuántos ítems deben leerse.</li>
       <li style="display:list-item;border:0">Modo <b>Signatura</b>: encierra UNA etiqueta en el marco amarillo, quieta y con luz. Usa “Etiqueta vertical” para lomos delgados. Con el registro automático, cada etiqueta que coincide dos veces con el maestro se registra sola: pitido agudo y destello verde. Las deducciones y lecturas aproximadas quedan marcadas en “Para revisar”.</li>
       <li style="display:list-item;border:0">Si apagas el registro automático, la página se detiene en cada caso dudoso y te deja elegir.</li>
-      <li style="display:list-item;border:0">Al terminar, pulsa <b>Enviar a Claude</b> y pega el texto en el chat. Lleva la fecha 24/11/2026, el entrepaño, cada código con su signatura y los avisos.</li>
+      <li style="display:list-item;border:0">Al terminar, pulsa <b>Compartir lista</b> para enviarla por WhatsApp o correo, o <b>Descargar lista .txt</b>. <b>Enviar a Claude</b> la copia para pegarla en el chat. Lleva la fecha 24/11/2026, el entrepaño, cada código con su signatura y los avisos.</li>
     </ol>
     <p class="note">Las listas se guardan solo en este celular. Descarga el respaldo al final de cada jornada.</p>
     <div class="row">
@@ -458,12 +481,23 @@ function rangoDe(t){
   return d&&h?{d,h,auto:!(t.desde&&t.hasta)}:null;
 }
 function esperados(t){const r=rangoDe(t);if(!r||!hayMaestro)return [];return Motor.rango(t.ubic,r.d,r.h).filter(x=>!x.perdido&&!x.retirado)}
+function titulos(lista){return new Set(lista.map(x=>(x.cn||'').toUpperCase())).size}
+// títulos del rango de los que no se leyó ningún ejemplar
+function titulosSinLeer(esp,items){const leidos=new Set(items.map(x=>(x.cn||'').toUpperCase()));return new Set(esp.filter(x=>!leidos.has((x.cn||'').toUpperCase())).map(x=>(x.cn||'').toUpperCase())).size}
+function cifras(t){const esp=esperados(t),leid=new Set(t.items.map(x=>x.codigo)),falt=esp.filter(x=>!leid.has(x.codigo));return {leidos:t.items.length,esp:esp.length,falt,ft:titulosSinLeer(esp,t.items)}}
+function grupos(){const g=new Map();for(const [id,t] of Object.entries(st.tramos)){const k=t.ubic+'|'+t.est;if(!g.has(k))g.set(k,{ubic:t.ubic,est:t.est,ids:[]});g.get(k).ids.push(id)}return [...g.values()]}
+function pintarResumen(){
+  const cur=T();const filas=grupos().map(g=>{let l=0,e=0,f=[];let ft=0;for(const id of g.ids){const c=cifras(st.tramos[id]);l+=c.leidos;e+=c.esp;f=f.concat(c.falt);ft+=c.ft}
+    const esCur=cur&&cur.ubic===g.ubic&&cur.est===g.est;return `<tr${esCur?' class="cur"':''}><td>${esc(g.ubic)} · ${esc(g.est)}${g.ids.length>1?` <small>(${g.ids.length} entrepaños)</small>`:''}</td><td>${l}</td><td>${e}</td><td>${f.length}</td><td>${ft}</td></tr>`});
+  $('resumen').innerHTML=filas.join('')||'<tr><td colspan="5" class="note">Aún no hay estanterías.</td></tr>';
+}
 function pintarAvance(){
   const t=T();const r=rangoDe(t);const esp=t?esperados(t):[];const leidos=new Set(t?t.items.map(x=>x.codigo):[]);
   const falt=esp.filter(x=>!leidos.has(x.codigo));const dentro=esp.length-falt.length;
   $('pRango').textContent=r?`${r.d} – ${r.h}${r.auto?' (según lo leído)':''}`:'—';
-  $('pLeidos').textContent=dentro;$('pEsp').textContent=esp.length;$('pFaltan').textContent=falt.length;
+  $('pLeidos').textContent=dentro;$('pEsp').textContent=esp.length;$('pFaltan').textContent=falt.length;$('pTit').textContent=titulosSinLeer(esp,t?t.items:[]);
   $('pRev').textContent=t?t.items.filter(x=>(x.flags||[]).length).length:0;
+  pintarResumen();
   $('pBarra').style.width=esp.length?Math.round(100*dentro/esp.length)+'%':'0';
   $('faltan').innerHTML=falt.slice(0,300).map(x=>`<li><span class="n"></span><div class="d"><code>${esc(sigDe(x))}</code><small>${esc(x.codigo)} · ${esc(x.titulo||'')}</small></div></li>`).join('')||'<li class="note" style="border:0">No falta ningún ítem del rango.</li>';
 }
@@ -536,7 +570,7 @@ function recorte(giro){
   const v=$('vid'),W=v.videoWidth,H=v.videoHeight;if(!W||!H)return null;
   const r=ori==='h'?{x:.06,y:.34,w:.88,h:.32}:{x:.34,y:.06,w:.32,h:.88};
   const sx=r.x*W,sy=r.y*H,sw=r.w*W,sh=r.h*H;
-  const esc2=Math.min(2.2,1400/Math.max(sw,sh));
+  const esc2=Math.min(2,1100/Math.max(sw,sh));
   const dw=Math.round(sw*esc2),dh=Math.round(sh*esc2);
   if(giro){cv.width=dh;cv.height=dw;cx.save();cx.translate(giro>0?dh:0,giro>0?0:dw);cx.rotate(giro*Math.PI/2);cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh);cx.restore()}
   else{cv.width=dw;cv.height=dh;cx.drawImage(v,sx,sy,sw,sh,0,0,dw,dh)}
@@ -550,25 +584,29 @@ async function cicloOCR(){
   if(pausa||ocupado||!T()){setTimeout(cicloOCR,250);return}
   ocupado=true;
   try{
-    const giros=ori==='h'?[0]:[1,-1];let mejor=null;
+    const giros=ori==='h'?[0]:(ultGiro===-1?[-1,1]:[1,-1]);let mejor=null;
     for(const g of giros){const c=recorte(g);if(!c)break;const {data}=await worker.recognize(c);
       const r=Motor.resolver(data.text,T().ubic,new Set(T().items.map(x=>x.codigo)));
       $('ocrtxt').textContent=data.text.trim().slice(0,120)||'…';
-      if(r.estado!=='nada'){mejor=r;break}}
+      if(r.estado!=='nada'){mejor=r;if(g)ultGiro=g;break}}
     if(mejor){vacios=0;procesar(mejor)}else{ultimaClave='';if(++vacios>=2)bloqueoSig=''}   // se libera tras dos lecturas sin etiqueta (la cámara pasó a otro libro)
   }catch(e){msg('Error leyendo: '+(e.message||e),'bad')}
-  ocupado=false;setTimeout(cicloOCR,120);
+  ocupado=false;setTimeout(cicloOCR,20);
 }
+let tMarco=null;
+function marco(c){const g=$('guia');g.classList.remove('verde','ambar');void g.offsetWidth;g.classList.add(c);clearTimeout(tMarco);tMarco=setTimeout(()=>g.classList.remove('verde','ambar'),700)}
 function claveRes(r){return r.estado+'|'+(r.item?r.item.codigo:(r.opciones||[]).map(x=>x.codigo).join(','))}
 // identifica la etiqueta leída (signatura + ejemplar + volumen), no el ítem elegido
 function sigKey(r){return [...new Set((r.item?[r.item]:(r.opciones||[])).map(x=>x.cn))].sort().join(',')+'|'+(r.lec?r.lec.e:'')+'|'+(r.lec?r.lec.v:'')}
-let bloqueoSig='',vacios=0;
+let bloqueoSig='',vacios=0,ultGiro=1;
 function procesar(r){
   const k=claveRes(r),now=Date.now(),sk=sigKey(r);
   if(sk===bloqueoSig)return;                         // misma etiqueta que acabamos de registrar: esperar a que la cámara pase a otro libro
-  if(k!==ultimaClave){ultimaClave=k;return}           // exige dos lecturas iguales seguidas
+  const seguro=r.estado==='ok'||r.estado==='ambiguo';   // signatura idéntica a la de Koha: basta una lectura
+  marco(r.estado==='dudoso'&&r.tipo==='cercana'?'ambar':'verde');
+  if(!seguro&&k!==ultimaClave){ultimaClave=k;return}   // lecturas aproximadas: exigen dos lecturas iguales seguidas
   ultimaClave='';ultimaVez=now;bloqueoSig=sk;
-  if(r.estado==='ok'){if(T().items.some(x=>x.codigo===r.item.codigo)){if(r.item.codigo!==ultimoReg){msg(`Ya estaba: ${sigDe(r.item)}`,'dup')}return}registrar(r.item,[]);return}
+  if(r.estado==='ok'){if(T().items.some(x=>x.codigo===r.item.codigo)){msg(`Ya estaba leído: ${sigDe(r.item)}`,'ok');return}registrar(r.item,[]);return}
   if(!$('auto').checked){mostrarDecision(r);return}
   automatico(r);
 }
@@ -666,15 +704,33 @@ function fijar(){
 function textoClaude(t){
   const its=t.items,ord=its.filter(x=>x.cn).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);
   const r=rangoDe(t),esp=esperados(t),leidos=new Set(its.map(x=>x.codigo)),falt=esp.filter(x=>!leidos.has(x.codigo));
-  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango: ${r?r.d+' – '+r.h+(r.auto?' (según lo leído)':''):'sin rango'}`,`Leídos: ${its.length} · Esperados en el rango: ${esp.length} · Faltan: ${falt.length}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
+  return [`INVENTARIO CRAI-UAO`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()||'(sin nombre)'}`,`Tramo: ${nombreT(t)}`,`Ubicación Koha: ${t.ubic}`,`Rango: ${r?r.d+' – '+r.h+(r.auto?' (según lo leído)':''):'sin rango'}`,`Leídos: ${its.length} · Esperados en el rango: ${esp.length} · Faltan: ${falt.length} ejemplares · Títulos sin leer: ${titulosSinLeer(esp,its)}`,`Maestro: ${Motor.meta.fecha||'?'}`,`Libros (código | signatura | avisos):`,
     ...its.map(x=>`${x.codigo} | ${sigDe(x)}${x.flags&&x.flags.length?' | '+x.flags.join('; '):''}`),
-    ...(falt.length?[`Faltantes del rango (código | signatura):`,...falt.map(x=>`${x.codigo} | ${sigDe(x)}`)]:[])].join('\n');
+    ...(falt.length?[`Faltantes del rango (código | signatura | título):`,...falt.map(x=>`${x.codigo} | ${sigDe(x)} | ${x.titulo||''}`)]:[])].join('\n');
 }
 function archivo(base){return (`inventario_${FECHA_INV}_${base}`).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9_-]+/g,'-').replace(/-+/g,'-')+'.txt'}
 function descargar(n,c){const b=new Blob([c],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},800)}
 async function copiar(txt){try{await navigator.clipboard.writeText(txt);return true}catch(e){const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}ta.remove();return ok}}
 
 $('btnFijar').onclick=fijar;
+const quien=()=>($('quien').value||'').trim();
+try{$('quien').value=localStorage.getItem('crai-quien')||''}catch(e){}
+$('quien').addEventListener('change',()=>{try{localStorage.setItem('crai-quien',quien())}catch(e){}});
+function sello(){const d=new Date();return d.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'})}
+function informe(t){return textoClaude(t)+`\n\nGenerado: ${sello()}\n`}
+function nombreArchivo(t,tipo){return archivo(`${tipo}_${nombreT(t)}_${quien()||'sin-nombre'}`)}
+function pedirNombre(){if(quien())return true;msg('Escribe tu nombre en “Quién escanea” antes de generar la lista.','bad');sonido(false);$('quien').focus();$('quien').scrollIntoView({block:'center'});return false}
+$('btnLista').onclick=()=>{const t=T();if(!t||!t.items.length){msg('Esta estantería no tiene libros leídos.','dup');return}if(!pedirNombre())return;const n=nombreArchivo(t,'lista');descargar(n,informe(t));msg('Descargado: '+n,'ok')};
+$('btnKoha').onclick=()=>{const t=T();if(!t||!t.items.length){msg('Esta estantería no tiene libros leídos.','dup');return}const n=nombreArchivo(t,'koha');descargar(n,t.items.map(x=>x.codigo).join('\n')+'\n');msg('Descargado: '+n+' (un código por línea, para Koha › Inventario)','ok')};
+$('btnTodas').onclick=()=>{const ids=Object.keys(st.tramos).filter(id=>st.tramos[id].items.length);if(!ids.length){msg('No hay estanterías con libros leídos.','dup');return}if(!pedirNombre())return;
+  const res=grupos().map(g=>{let l=0,e=0,f=0,ft=0;for(const id of g.ids){const c=cifras(st.tramos[id]);l+=c.leidos;e+=c.esp;f+=c.falt.length;ft+=c.ft}return `${g.ubic} · Estantería ${g.est}: leídos ${l}, esperados ${e}, faltan ${f} ejemplares, títulos sin leer ${ft}`});
+  const n=archivo(`lista_todas_${quien()}`);descargar(n,[`RESUMEN POR ESTANTERÍA`,`Fecha de inventario: ${FECHA_TXT}`,`Escaneó: ${quien()}`,`Generado: ${sello()}`,'',...res,'',...ids.map(id=>textoClaude(st.tramos[id]))].join('\n')+'\n');msg('Descargado: '+n,'ok')};
+$('btnCompartir').onclick=async()=>{const t=T();if(!t||!t.items.length){msg('Esta estantería no tiene libros leídos.','dup');return}if(!pedirNombre())return;
+  const n=nombreArchivo(t,'lista'),txt=informe(t);
+  try{const f=new File([txt],n,{type:'text/plain'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Inventario CRAI-UAO',text:`Lista de inventario · ${nombreT(t)} · ${quien()}`});msg('Lista compartida.','ok');return}}
+  catch(e){if(e&&e.name==='AbortError'){msg('Se canceló el envío.','dup');return}}
+  descargar(n,txt);msg('Este navegador no permite compartir archivos: se descargó '+n+'. Adjúntalo en el correo o WhatsApp.','dup')};
 $('btnRangoLeido').onclick=()=>{const t=T();if(!t)return;const cns=t.items.filter(x=>x.cn).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);if(!cns.length){msg('Aún no hay signaturas leídas.','dup');return}t.desde=cns[0];t.hasta=cns[cns.length-1];save();render();msg(`Rango fijado: ${t.desde} – ${t.hasta}.`,'ok')};
 $('btnVerFaltan').onclick=()=>{const f=$('faltan');f.classList.toggle('hidden');$('btnVerFaltan').textContent=f.classList.contains('hidden')?'Ver faltantes':'Ocultar faltantes'};
 $('lista').onchange=()=>{const v=$('lista').value;if(v&&st.tramos[v]){st.cur=v;save();render();ultimaClave='';ultimoReg='';msg('Retomaste: '+nombreT(st.tramos[v]),'ok')}};
