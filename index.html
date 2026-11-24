@@ -94,11 +94,15 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
 <main>
   <div id="aviso"></div>
 
-  <section class="box maestro" aria-label="Archivo maestro de Koha">
-    <div id="mEstado">Archivo maestro: <b class="no">no cargado</b></div>
-    <div><label for="mFile" class="hidden">Archivo maestro</label>
-      <button id="btnM">Cargar archivo maestro</button>
-      <input type="file" id="mFile" accept=".tsv,.txt,text/plain,text/tab-separated-values" class="hidden"></div>
+  <section class="box" aria-label="Archivo maestro de Koha">
+    <div class="maestro"><div id="mEstado">Archivo maestro: <b class="no">no cargado</b></div><button class="ghost" id="btnAct" style="min-height:36px;font-size:13px" hidden>Buscar actualización</button></div>
+    <div id="mClave" style="margin-top:8px">
+      <label for="clave">Clave del equipo</label>
+      <div class="row"><input type="password" id="clave" autocomplete="current-password" placeholder="Clave que te dio el coordinador" style="flex:2 1 0"><button class="pri" id="btnBajar" style="flex:0 0 auto">Descargar maestro</button></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:6px;font-size:14px;color:var(--ink)"><input type="checkbox" id="recordar" checked style="width:20px;height:20px"> Recordar la clave en este dispositivo</label>
+      <p class="note" style="margin:6px 0 0">¿Sin internet? <button class="ghost" id="btnM" style="min-height:32px;font-size:13px;padding:2px 8px">Cargar desde archivo</button></p>
+      <input type="file" id="mFile" accept=".tsv,.txt,text/plain,text/tab-separated-values" class="hidden">
+    </div>
   </section>
 
   <section class="box" style="margin-top:10px" aria-labelledby="t1">
@@ -128,7 +132,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
     <video id="vid" playsinline muted class="hidden"></video>
     <div id="reader"></div>
     <div id="guia" class="h"></div>
-    <div id="camoff">Carga el archivo maestro y elige el entrepaño.<br>Luego pulsa <b>Iniciar cámara</b>.</div>
+    <div id="camoff">Descarga el maestro y elige el entrepaño.<br>Luego pulsa <b>Iniciar cámara</b>.</div>
     <div id="ocrtxt"></div>
     <div id="flash"></div>
   </div>
@@ -159,7 +163,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
   <details>
     <summary>Cómo usarla sin errores</summary>
     <ol style="border:0;padding-left:18px;list-style:decimal">
-      <li style="display:list-item;border:0">Una sola vez: carga el archivo maestro que te envió Claude. Queda guardado en el celular.</li>
+      <li style="display:list-item;border:0">Una sola vez por dispositivo: escribe la clave del equipo y pulsa <b>Descargar maestro</b>. Queda guardado y se actualiza solo cuando haya uno nuevo.</li>
       <li style="display:list-item;border:0">Elige la ubicación, escribe estante y entrepaño, y pulsa <b>Usar este entrepaño</b>.</li>
       <li style="display:list-item;border:0">Modo <b>Signatura</b>: encierra UNA etiqueta en el marco amarillo, quieta y con luz. Usa “Etiqueta vertical” para lomos delgados. El libro se registra solo cuando la lectura coincide dos veces con el maestro: pitido agudo y destello verde.</li>
       <li style="display:list-item;border:0">Si la etiqueta no tiene ejemplar o se parece a otra, la página se detiene y te muestra las opciones de Koha. Elige la correcta o pide volver a leer. Nunca adivina.</li>
@@ -340,17 +344,64 @@ function idb(){return new Promise((res,rej)=>{const r=indexedDB.open('crai-inv',
 async function guardarMaestro(txt){const db=await idb();return new Promise((res,rej)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(txt,'maestro');tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 async function leerMaestro(){const db=await idb();return new Promise(res=>{const tx=db.transaction('kv','readonly');const q=tx.objectStore('kv').get('maestro');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}
 let hayMaestro=false;
+const KV=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)}catch(e){return null}};
 function pintarMaestro(){
-  if(!hayMaestro){$('mEstado').innerHTML='Archivo maestro: <b class="no">no cargado</b>';$('ubic').innerHTML='<option value="">— carga el maestro —</option>';return}
+  $('mClave').classList.toggle('hidden',hayMaestro);$('btnAct').hidden=!hayMaestro;
+  if(!hayMaestro){$('mEstado').innerHTML='Archivo maestro: <b class="no">no cargado</b>';$('ubic').innerHTML='<option value="">— descarga el maestro —</option>';return}
   const m=Motor.meta;$('mEstado').innerHTML=`Maestro: <b class="ok">${Motor.total.toLocaleString('es-CO')} ítems</b>${m.fecha?` · Koha ${esc(m.fecha)}`:''}`;
   const t=T();const prev=$('ubic').value||(t&&t.ubic)||'';
   $('ubic').innerHTML=Motor.ubicaciones().map(([u,n])=>`<option value="${esc(u)}"${u===prev?' selected':''}>${esc(u)} (${n.toLocaleString('es-CO')})</option>`).join('');
 }
-async function iniciarMaestro(){try{const txt=await leerMaestro();if(txt){Motor.cargar(txt);hayMaestro=Motor.total>0}}catch(e){}pintarMaestro();render()}
+async function gunzip(buf){
+  if('DecompressionStream' in window){const ds=new DecompressionStream('gzip');const out=new Response(new Blob([buf]).stream().pipeThrough(ds));return await out.text()}
+  if(!window.pako){await new Promise((ok,ko)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc)})}
+  return window.pako.ungzip(new Uint8Array(buf),{to:'string'});
+}
+async function descifrar(buf,clave,iter){
+  const b=new Uint8Array(buf);if(new TextDecoder().decode(b.slice(0,5))!=='CRAI1')throw new Error('formato');
+  const salt=b.slice(5,21),iv=b.slice(21,33),ct=b.slice(33);
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(clave),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+  let plano;try{plano=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ct)}catch(e){throw new Error('clave')}
+  return gunzip(plano);
+}
+async function manifiesto(){try{const r=await fetch('maestro.json?t='+Date.now(),{cache:'no-store'});if(r.ok)return await r.json()}catch(e){}return null}
+async function bajarMaestro(clave,silencioso){
+  if(!window.crypto||!crypto.subtle){msg('Este navegador no permite descifrar. Abre la página con https en un navegador actualizado.','bad');return false}
+  const man=await manifiesto();if(!man){if(!silencioso)msg('No se pudo consultar el maestro. Revisa la conexión a internet.','bad');return false}
+  if(!silencioso)msg('Descargando y descifrando el maestro…','');
+  try{
+    const r=await fetch('maestro.enc?v='+encodeURIComponent(man.version),{cache:'no-store'});if(!r.ok)throw new Error('red');
+    const txt=await descifrar(await r.arrayBuffer(),clave,man.iter||310000);
+    Motor.cargar(txt);if(!Motor.total)throw new Error('vacio');
+    hayMaestro=true;await guardarMaestro(txt);KV('crai-maestro-ver',man.version);
+    if($('recordar').checked||silencioso)KV('crai-clave',clave);else KV('crai-clave',null);
+    pintarMaestro();render();msg(`Maestro listo: ${Motor.total.toLocaleString('es-CO')} ítems (Koha ${man.version}).`,'ok');return true;
+  }catch(e){
+    if(e.message==='clave'){KV('crai-clave',null);msg('Clave incorrecta. Pídela al coordinador del inventario.','bad')}
+    else msg('No se pudo descargar el maestro: '+(e.message||e),'bad');
+    return false;
+  }
+}
+async function iniciarMaestro(){
+  let txt=null;try{txt=await leerMaestro()}catch(e){}
+  if(txt){Motor.cargar(txt);hayMaestro=Motor.total>0}
+  pintarMaestro();render();
+  const man=await manifiesto();const clave=KV('crai-clave');
+  if(man&&(!hayMaestro||KV('crai-maestro-ver')!==man.version)){
+    if(clave){await bajarMaestro(clave,true)}
+    else if(hayMaestro){msg(`Hay un maestro más reciente (Koha ${man.version}). Pulsa “Buscar actualización”.`,'dup')}
+  }
+}
+$('btnBajar').onclick=()=>{const c=$('clave').value;if(!c){msg('Escribe la clave del equipo.','bad');return}bajarMaestro(c,false).then(ok=>{if(ok)$('clave').value=''})};
+$('clave').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('btnBajar').click()}});
+$('btnAct').onclick=async()=>{const man=await manifiesto();if(!man){msg('Sin conexión para buscar actualizaciones.','bad');return}
+  if(KV('crai-maestro-ver')===man.version){msg(`Ya tienes el maestro más reciente (Koha ${man.version}).`,'ok');return}
+  const c=KV('crai-clave');if(c)bajarMaestro(c,false);else{hayMaestro=false;pintarMaestro();msg('Escribe la clave para descargar la nueva versión.','')}};
 $('btnM').onclick=()=>$('mFile').click();
 $('mFile').onchange=async()=>{const f=$('mFile').files[0];if(!f)return;msg('Cargando maestro…','');
   try{const txt=await f.text();Motor.cargar(txt);if(!Motor.total)throw new Error('vacío');hayMaestro=true;await guardarMaestro(txt);pintarMaestro();render();msg(`Maestro cargado: ${Motor.total.toLocaleString('es-CO')} ítems.`,'ok')}
-  catch(e){msg('Ese archivo no es el maestro de Koha. Usa el archivo .tsv que te envió Claude.','bad')}$('mFile').value=''};
+  catch(e){msg('Ese archivo no es el maestro de Koha.','bad')}$('mFile').value=''};
 
 // ---------- interfaz ----------
 function render(){
@@ -474,7 +525,7 @@ async function camara(){
   if(!T()){msg('Primero elige el entrepaño y pulsa “Usar este entrepaño”.','bad');sonido(false);return}
   if(!window.isSecureContext){msg('La cámara solo funciona si la página se abre con https.','bad');return}
   if(modo==='sig'){
-    if(!hayMaestro){msg('Para leer signaturas primero carga el archivo maestro.','bad');sonido(false);return}
+    if(!hayMaestro){msg('Para leer signaturas primero descarga el maestro con la clave del equipo.','bad');sonido(false);return}
     try{await prepararOCR()}catch(e){msg('No cargó el lector de signaturas. Revisa la conexión a internet y recarga.','bad');return}
     try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false})}
     catch(e){msg('No se pudo abrir la cámara. Permite el acceso a la cámara para esta página.','bad');return}
