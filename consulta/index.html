@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ubica tu libro · CRAI UAO</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#8C1D2F">
+<link rel="apple-touch-icon" href="../icono-192.png">
 <meta name="description" content="Encuentra en qué piso y estantería está un libro del CRAI de la Universidad Autónoma de Occidente, y dónde va el libro que estás consultando.">
 <style>
 /*
@@ -32,6 +35,10 @@ button{font:inherit;cursor:pointer}
 .btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
 .note{font-size:14px;color:var(--mute)}
 .estado{margin:10px 2px;font-size:14px;color:var(--mute);min-height:20px}
+.tam{float:right;display:flex;gap:6px}.tam .btn{min-height:40px;padding:4px 12px;background:rgba(255,255,255,.15);color:inherit;border-color:rgba(255,255,255,.4)}
+.pasos{margin:10px 0 0;padding-left:22px}.pasos li{margin:4px 0}
+.acciones{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.acciones .btn{flex:1 1 auto}
+.pisos table{width:100%;border-collapse:collapse;font-size:15px}.pisos td,.pisos th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
 .card{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px;background:var(--bg)}
 .card h3{margin:0;font-size:17px;line-height:1.3}
 .card .anio{color:var(--mute);font-weight:400}
@@ -72,6 +79,7 @@ footer{max-width:680px;margin:0 auto;padding:0 14px 30px;font-size:13px;color:va
 </head>
 <body>
 <header>
+  <div class="tam" role="group" aria-label="Tamaño del texto"><button class="btn" id="aMenos" aria-label="Letra más pequeña">A−</button><button class="btn" id="aMas" aria-label="Letra más grande">A+</button></div>
   <h1>Ubica tu libro</h1>
   <p>CRAI · Universidad Autónoma de Occidente</p>
 </header>
@@ -103,6 +111,11 @@ footer{max-width:680px;margin:0 auto;padding:0 14px 30px;font-size:13px;color:va
     <div id="resD"></div>
   </section>
 
+  <details class="pisos" id="guiaPisos">
+    <summary>Guía de pisos: qué temas hay en cada piso</summary>
+    <div id="pisosT"><p class="note">Cargando…</p></div>
+  </details>
+
   <details>
     <summary>¿Cómo leer la signatura del lomo?</summary>
     <p>La etiqueta tiene dos partes. Primero un <b>número</b> (por ejemplo <b>330.122</b>) que indica el tema: los libros van de menor a mayor, y los decimales se leen como decimales (330.12 va antes que 330.2). Luego una <b>letra con números</b> (por ejemplo <b>R347t</b>) que corresponde al autor: dentro del mismo número, van en orden alfabético y luego numérico. Si ves <b>e.2</b> o <b>v.1</b>, es el ejemplar o el volumen.</p>
@@ -116,7 +129,7 @@ footer{max-width:680px;margin:0 auto;padding:0 14px 30px;font-size:13px;color:va
   <div class="pie"><button class="btn" id="bOri">Etiquetas verticales</button></div>
 </div>
 
-<footer>Ubicaciones tomadas del catálogo Koha del CRAI (corte <span id="corte">—</span>). Para saber si un libro está prestado, consulta el catálogo en línea o pregunta en el mostrador.</footer>
+<footer>Ubicaciones tomadas del catálogo Koha del CRAI (corte <span id="corte">—</span>). Para saber si un libro está prestado, toca “¿Está disponible?” (catálogo en línea catalogo.uao.edu.co) o pregunta en el mostrador.</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
@@ -351,7 +364,26 @@ const Motor = (() => {
     }
     return { encontrados: res, esperados: exp.length };
   }
-  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, enRango, get meta() { return meta; }, get total() { return filas.length; } };
+  // Lectura de estante: dado el orden físico (izquierda→derecha) devuelve los libros fuera de orden.
+  // Se conserva la subsecuencia creciente más larga; el resto se marca con los vecinos entre los que debería ir.
+  const fueraDeOrden = lista => {
+    const k = lista.map(x => claveOrden(x.cn || ''));
+    const n = k.length; if (n < 3) return [];
+    const len = new Array(n).fill(1), prev = new Array(n).fill(-1);
+    for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (k[j] <= k[i] && len[j] + 1 > len[i]) { len[i] = len[j] + 1; prev[i] = j; }
+    let best = 0; for (let i = 1; i < n; i++) if (len[i] > len[best]) best = i;
+    const bien = new Set(); for (let i = best; i >= 0; i = prev[i]) bien.add(i);
+    const orden = [...bien].sort((a, b) => a - b);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      if (bien.has(i)) continue;
+      let antes = null, despues = null;
+      for (const j of orden) { if (k[j] <= k[i]) antes = lista[j]; else { despues = lista[j]; break; } }
+      out.push({ item: lista[i], pos: i, antes, despues });
+    }
+    return out;
+  };
+  return { cargar, ubicaciones, buscarCodigo, resolver, claveOrden, lecturaDe, rango, enRango, fueraDeOrden, get meta() { return meta; }, get total() { return filas.length; } };
 })();
 /*MATCH-END*/
 
@@ -368,14 +400,18 @@ const normCN=s=>String(s||'').toUpperCase().replace(/[\/\\|_]/g,' ').replace(/\s
 // ---------- datos ----------
 let fichas=[];   // {cn,titulo,anio,ubic,copias,tn,cnn}
 let mapa=[];     // [{ubic,est,ent,desde,hasta}] — se llena con el inventario
+// Catálogo en línea (OPAC) para consultar disponibilidad. Déjalo vacío para ocultar el botón.
+const OPAC='https://catalogo.uao.edu.co/cgi-bin/koha/opac-search.pl?idx=callnum&q=';   // búsqueda por signatura en el catálogo Koha de la UAO
+const opacURL=f=>OPAC?OPAC+encodeURIComponent(f.cn):'';
 async function cargar(){
   try{
     const r=await fetch('catalogo.tsv',{cache:'no-cache'});const txt=await r.text();
     Motor.cargar(txt);
     const L=txt.split('\n');const m=(L[0]||'').match(/fecha=(\S+)/);if(m)$('corte').textContent=m[1];
-    for(const l of L){const c=l.split('\t');if(c.length<12||!/^P\d+$/.test(c[0]))continue;fichas.push({cn:c[1],ubic:c[4],anio:c[10],titulo:c[11],copias:+(c[12]||1),tn:norm(c[11]),cnn:normCN(c[1])})}
+    for(const l of L){const c=l.split('\t');if(c.length<12||!/^P\d+$/.test(c[0]))continue;fichas.push({cn:c[1],ubic:c[4],anio:(+c[10]>=1450&&+c[10]<=2100)?c[10]:'',titulo:c[11],copias:+(c[12]||1),tn:norm(c[11]),cnn:normCN(c[1])})}
     try{const rm=await fetch('mapa.json',{cache:'no-cache'});if(rm.ok)mapa=await rm.json()}catch(e){}
     $('estado').textContent=`${fichas.length.toLocaleString('es-CO')} títulos y ediciones disponibles para buscar.`;
+    pintarPisos();
     if($('q').value)buscar();
   }catch(e){$('estado').textContent='No se pudo cargar el catálogo. Revisa tu conexión e inténtalo de nuevo.'}
 }
@@ -385,6 +421,22 @@ function estanteria(ubic,cn){
   return e?`Estantería ${e.est}${e.ent?' · entrepaño '+e.ent:''}`:'';
 }
 
+// ---------- cómo llegar (instrucciones escritas, como en los mapas de colecciones) ----------
+function pasosA(ubic,cn){const est=estanteria(ubic,cn),z=zona(cn);
+  return [`Ve al <b>${esc(ubic)}</b>.`,z?`Busca la zona <b>${esc(z)}</b>.`:'',est?`Ubica la <b>${esc(est)}</b>.`:'',`Sigue el orden de las etiquetas, de izquierda a derecha y de arriba abajo, hasta <b>${esc(cn)}</b>.`].filter(Boolean).map(x=>`<li>${x}</li>`).join('')}
+function textoUbicacion(g){const f=g[0];return `${f.titulo||''}${f.anio?' ('+f.anio+')':''}\nSignatura: ${f.cn}\nDónde: ${[...new Set(g.map(x=>x.ubic+(estanteria(x.ubic,x.cn)?' · '+estanteria(x.ubic,x.cn):'')))].join(' / ')}\nZona: ${zona(f.cn)}\nCRAI · Universidad Autónoma de Occidente`}
+async function compartirUbic(g){const txt=textoUbicacion(g);
+  try{if(navigator.share){await navigator.share({title:'Ubicación del libro',text:txt});return}}catch(e){if(e&&e.name==='AbortError')return}
+  try{await navigator.clipboard.writeText(txt);$('estado').textContent='Ubicación copiada: pégala en tus notas o envíala.'}catch(e){$('estado').textContent=txt}}
+// ---------- guía de pisos ----------
+function pintarPisos(){const por=new Map();for(const f of fichas){const m=String(f.cn).match(/(\d)\d\d/);const d=m?+m[1]:-1;if(!por.has(f.ubic))por.set(f.ubic,new Map());const z=por.get(f.ubic);z.set(d,(z.get(d)||0)+1)}
+  const orden=['Sótano','Primer piso','Segundo piso','Tercer piso'];const ubs=[...por.keys()].sort((a,b)=>(orden.indexOf(a)+1||9)-(orden.indexOf(b)+1||9));
+  $('pisosT').innerHTML='<table><thead><tr><th>Piso</th><th>Temas (número de la etiqueta)</th></tr></thead><tbody>'+ubs.map(u=>{const z=por.get(u);const ds=[...z.keys()].filter(d=>d>=0&&z.get(d)>=20).sort();
+    return `<tr><td><b>${esc(u)}</b></td><td>${ds.map(d=>`${d}00 ${esc(ZONAS[d]||'')}`).join('<br>')||'Material especial'}</td></tr>`}).join('')+'</tbody></table><p class="note">Los libros van de menor a mayor número. Si un tema aparece en varios pisos, revisa la ubicación exacta del libro con el buscador.</p>'}
+// ---------- tamaño del texto ----------
+let escala=1;try{escala=+localStorage.getItem('crai-ubica-tam')||1}catch(e){}
+function aplicarTam(){document.documentElement.style.fontSize=(escala*100)+'%';document.body.style.fontSize=(escala*16)+'px';try{localStorage.setItem('crai-ubica-tam',escala)}catch(e){}}
+$('aMas').onclick=()=>{escala=Math.min(1.5,+(escala+.125).toFixed(3));aplicarTam()};$('aMenos').onclick=()=>{escala=Math.max(.875,+(escala-.125).toFixed(3));aplicarTam()};aplicarTam();
 // ---------- tarjetas ----------
 function tarjeta(grupo){
   const f=grupo[0];
@@ -393,8 +445,9 @@ function tarjeta(grupo){
   return `<article class="card"><h3>${esc(f.titulo||'(sin título)')} <span class="anio">${f.anio?'· '+esc(f.anio):''}</span></h3>
     <div class="etq" aria-label="Signatura">${esc(f.cn)}</div>
     <ul class="ruta">${ubics}<li><b>Zona</b><span>${esc(zona(f.cn)||'—')}</span></li><li><b>Ejemplares</b><span>${total}</span></li></ul>
-    ${grupo.some(g=>!estanteria(g.ubic,g.cn))?'<p class="note" style="margin:8px 0 0">Busca en ese piso la zona indicada y sigue el orden de las etiquetas hasta encontrar esta signatura.</p>':''}
+    <ol class="pasos" aria-label="Cómo llegar">${pasosA(f.ubic,f.cn)}</ol>
     <button class="btn pri buscar" data-g="${gruposVista.indexOf(grupo)}">Buscarlo en el estante con la cámara</button>
+    <div class="acciones"><button class="btn compartir" data-g="${gruposVista.indexOf(grupo)}">Guardar o enviar la ubicación</button>${OPAC?`<a class="btn" href="${esc(opacURL(f))}" target="_blank" rel="noopener">¿Está disponible?</a>`:''}</div>
   </article>`;
 }
 function agrupar(lista){const g=new Map();for(const f of lista){const k=f.cnn+'|'+f.anio+'|'+f.tn;if(!g.has(k))g.set(k,[]);g.get(k).push(f)}return [...g.values()]}
@@ -516,12 +569,13 @@ async function abrirBuscador(grupo){
   const v=$('bVid');v.srcObject=bStream;await v.play();bActivo=true;bPista(`Pasa la cámara despacio por las etiquetas de ${f.ubic}. Te avisamos cuando lo encuentre.`);[0,1].forEach(i=>bBucle(i));
 }
 function cerrarBuscador(){bActivo=false;if(bStream){bStream.getTracks().forEach(t=>t.stop());bStream=null}$('buscador').style.display='none';bus=null}
-$('res').addEventListener('click',e=>{const b=e.target.closest('button.buscar');if(!b)return;const g=gruposVista[+b.dataset.g];if(g)abrirBuscador(g)});
+$('res').addEventListener('click',e=>{const c=e.target.closest('button.compartir');if(c){const g=gruposVista[+c.dataset.g];if(g)compartirUbic(g);return}const b=e.target.closest('button.buscar');if(!b)return;const g=gruposVista[+b.dataset.g];if(g)abrirBuscador(g)});
 $('bCerrar').onclick=cerrarBuscador;$('bOk').onclick=cerrarBuscador;
 $('bOri').onclick=()=>{bOri=bOri==='h'?'v':'h';bMarco()};
 
 window.__u={evaluar:t=>{bEvaluar(t);return $('bHall').style.display==='grid'?'HALLADO':$('bPista').textContent},abrirSinCamara:i=>{const g=gruposVista[i];const f=g[0];bus={cn:f.cn,ubic:f.ubic,titulo:f.titulo};bActivo=true;$('buscador').style.display='flex';bMarco();return f.cn},buscar:q=>{$('q').value=q;buscar();return $('estado').textContent},donde:t=>dondeVa(t,'manual')};
 }
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('../sw.js').catch(()=>{}));
 </script>
 </body>
 </html>
