@@ -676,7 +676,10 @@ function rangoDe(t){
   if((!d||!h)&&t.items.length){const cns=t.items.filter(x=>x.cn&&!(x.flags||[]).some(f=>/^(Fuera del rango|En Koha figura|Lectura aproximada)/.test(f))).map(x=>x.cn).sort((a,b)=>Motor.claveOrden(a)<Motor.claveOrden(b)?-1:1);if(cns.length){d=d||cns[0];h=h||cns[cns.length-1]}}
   return d&&h?{d,h,auto:!(t.desde&&t.hasta)}:null;
 }
-function esperados(t){const r=rangoDe(t);if(!r||!hayMaestro)return [];return Motor.rango(t.ubic,r.d,r.h).filter(x=>!x.perdido&&!x.retirado)}
+// novedades de Koha (prestados, perdidos y dados de baja): no cuentan como esperados ni faltantes
+const NOV=new Map();
+fetch('novedades.txt',{cache:'no-cache'}).then(r=>r.ok?r.text():'').then(t=>{for(const l of t.split('\n')){if(!l||l[0]==='#')continue;const [c,k]=l.split('\t');if(c)NOV.set(c,k)}try{render()}catch(e){}}).catch(()=>{});
+function esperados(t){const r=rangoDe(t);if(!r||!hayMaestro)return [];return Motor.rango(t.ubic,r.d,r.h).filter(x=>!x.perdido&&!x.retirado&&!NOV.has(x.codigo))}
 function titulos(lista){return new Set(lista.map(x=>(x.cn||'').toUpperCase())).size}
 // títulos del rango de los que no se leyó ningún ejemplar
 function titulosSinLeer(esp,items){const leidos=new Set(items.map(x=>(x.cn||'').toUpperCase()));return new Set(esp.filter(x=>!leidos.has((x.cn||'').toUpperCase())).map(x=>(x.cn||'').toUpperCase())).size}
@@ -728,6 +731,7 @@ function registrar(it,extra){
   if(it.ubic!==t.ubic)flags.push(`En Koha figura en: ${it.ubic}`);
   if(it.perdido)flags.push('En Koha figura como perdido');
   if(it.retirado)flags.push('En Koha figura como retirado');
+  if(NOV.has(it.codigo)&&!it.perdido&&!it.retirado)flags.push(`En Koha figura ${NOV.get(it.codigo)}: se encontró en el estante`);
   if(t.desde&&t.hasta&&it.cn){const k=Motor.claveOrden(it.cn);if(k<Motor.claveOrden(t.desde)||k>Motor.claveOrden(t.hasta)+'\uffff')flags.push('Fuera del rango de esta estantería')}
   const prev=t.items[t.items.length-1];
   const otro=dondeEsta(it.codigo);
