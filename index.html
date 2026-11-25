@@ -241,6 +241,7 @@ summary{cursor:pointer;font-weight:700;min-height:32px}
       <button id="btnCompartir">Compartir lista</button>
       <button class="ghost" id="btnKoha">Códigos para Koha .txt</button>
       <button class="ghost" id="btnTodas">Lista de todas las estanterías</button>
+      <button class="pri" id="btnVerifIA">Hojas para verificar con IA</button>
       <button id="btnQRsend">Pasar a otro celular (QR)</button>
       <button class="ghost" id="btnQRrecv">Recibir de otro celular (QR)</button>
       <button class="ghost" id="btnCopiar">Copiar lista (pegar en Teams, SMS…)</button>
@@ -733,6 +734,7 @@ function registrar(it,extra){
   const hacer=()=>{
     if(otro&&otro!==st.cur){const o=st.tramos[otro];o.items=o.items.filter(x=>x.codigo!==it.codigo);o.enviado=null}
     t.enviado=null;t.items.push({codigo:it.codigo,cn:it.cn,copia:it.copia,titulo:it.titulo,flags});save();render();ultimoReg=it.codigo;
+    if(capt&&Date.now()-capt.t<2500){guardarFoto(it.codigo,capt.c).catch(()=>{})}
     msg(`Registrado: ${sigDe(it)}${flags.length?' · '+flags.join(' · '):''}`,flags.length?'dup':'ok');sonido(true);
     if(t.conteo&&t.items.length===t.conteo)setTimeout(()=>{msg(`¡Entrepaño completo! Leíste los ${t.conteo} libros contados.`,'ok');try{navigator.vibrate&&navigator.vibrate([100,60,100,60,300])}catch(e){}},700)};
   if(otro&&otro!==st.cur){pausa=true;sonido(false);preguntar(`${sigDe(it)} (${it.codigo}) ya está registrado en:\n${nombreT(st.tramos[otro])}\n\n¿Moverlo a este entrepaño? Hazlo solo si el libro de verdad está aquí.`,()=>{hacer();pausa=false},'Mover aquí',()=>{pausa=false;msg('No se movió.','dup')});return false}
@@ -792,6 +794,33 @@ function recorte(giro,i){
   const k=255/Math.max(40,mx-mn);for(let i=0;i<d.length;i+=4){const g=Math.max(0,Math.min(255,(d[i]-mn)*k));d[i]=d[i+1]=d[i+2]=g}
   cx.putImageData(im,0,0);return cv;
 }
+// ---------- lector de texto: el del sistema (más rápido) si el navegador lo trae; si no, Tesseract ----------
+let detNativo=null,probadoNativo=false;
+async function leerTexto(c,i){
+  if(!probadoNativo){probadoNativo=true;try{if('TextDetector' in window){const d=new TextDetector();await d.detect(c);detNativo=d;$('ocrtxt').textContent='Usando el lector de texto del sistema.'}}catch(e){detNativo=null}}
+  if(detNativo){try{const r=await detNativo.detect(c);return {text:r.map(x=>x.rawValue||'').join('\n')}}catch(e){detNativo=null}}
+  const {data}=await workers[i].recognize(c);return data}
+// ---------- foto de cada etiqueta leída en vivo, para verificarla después con IA ----------
+let capt=null;
+function miniatura(c){const k=Math.min(1,420/c.width),m=document.createElement('canvas');m.width=Math.round(c.width*k);m.height=Math.round(c.height*k);m.getContext('2d').drawImage(c,0,0,m.width,m.height);return m.toDataURL('image/jpeg',.72)}
+async function guardarFoto(cod,url){const db=await idb();return new Promise(res=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(url,'foto:'+cod);tx.oncomplete=res;tx.onerror=res})}
+async function leerFoto(cod){const db=await idb();return new Promise(res=>{const q=db.transaction('kv','readonly').objectStore('kv').get('foto:'+cod);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null)})}
+const cargarImg=u=>new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=u});
+async function hojasVerificacion(t){
+  const con=[],sin=[];for(const x of t.items){const f=await leerFoto(x.codigo);if(f)con.push({x,f});else sin.push(x)}
+  const POR=18,C=3,TW=500,TH=230,CAB=90,hojas=[];const lote=Math.random().toString(36).slice(2,6).toUpperCase();
+  const nH=Math.ceil(con.length/POR);
+  for(let h=0;h<nH;h++){const parte=con.slice(h*POR,(h+1)*POR),filas=Math.ceil(parte.length/C);
+    const cv=document.createElement('canvas');cv.width=C*TW;cv.height=CAB+filas*TH;const g=cv.getContext('2d');
+    g.fillStyle='#fff';g.fillRect(0,0,cv.width,cv.height);g.fillStyle='#8C1D2F';g.fillRect(0,0,cv.width,CAB);
+    g.fillStyle='#fff';g.font='bold 34px sans-serif';g.fillText(`VERIFICACIÓN ${lote} · hoja ${h+1} de ${nH}`,20,40);g.font='24px sans-serif';g.fillText(`${nombreT(t)} · ${quien()||''} · ${FECHA_TXT}`,20,74);
+    for(let j=0;j<parte.length;j++){const {x,f}=parte[j],n=h*POR+j+1,cx=(j%C)*TW,cy=CAB+Math.floor(j/C)*TH;
+      g.strokeStyle='#bbb';g.lineWidth=2;g.strokeRect(cx+4,cy+4,TW-8,TH-8);
+      try{const im=await cargarImg(f);const k=Math.min((TW-20)/im.width,150/im.height);g.drawImage(im,cx+10+((TW-20)-im.width*k)/2,cy+10,im.width*k,im.height*k)}catch(e){}
+      g.fillStyle='#8C1D2F';g.fillRect(cx+4,cy+TH-66,TW-8,62);g.fillStyle='#fff';g.font='bold 26px sans-serif';g.fillText(`#${n}  ${x.cn}${x.copia?' '+x.copia:''}`,cx+14,cy+TH-38);
+      g.font='22px monospace';g.fillText(`código ${x.codigo}`,cx+14,cy+TH-12)}
+    hojas.push(await new Promise(r=>cv.toBlob(b=>r(new File([b],`verificacion_${lote}_hoja${h+1}.jpg`,{type:'image/jpeg'})),'image/jpeg',.85)))}
+  return {hojas,sin,lote,total:con.length}}
 // cada lector lee sin pausa; en etiquetas verticales uno prueba cada sentido de giro
 function cicloOCR(){[0,1].forEach(i=>bucle(i))}
 async function bucle(i){
@@ -800,7 +829,7 @@ async function bucle(i){
   try{
     const g=ori==='h'?0:(i===0?1:-1);
     const c=recorte(g,i);
-    if(c){const {data}=await workers[i].recognize(c);
+    if(c){const data=await leerTexto(c,i);capt={t:Date.now(),c:miniatura(c)};
       if(activo&&!pausa&&!bloqueando){
         const ub=busca?(T()?T().ubic:busca.ubic):T().ubic;
         let r=Motor.resolver(data.text,ub,new Set(busca?[]:T().items.map(x=>x.codigo)));
@@ -1146,6 +1175,12 @@ function qrMostrar(i){const q=qrcode(0,'M');q.addData(qrPartes[i]);q.make();$('q
 function qrCiclo(){clearInterval(qrT);qrT=setInterval(()=>{if(qrPausa||!qrPartes.length)return;qrI=(qrI+1)%qrPartes.length;qrMostrar(qrI)},1400)}
 function abrirQR(modo){$('qrx').style.display='grid';const env=modo==='enviar';$('qrImg').classList.toggle('hidden',!env);$('qrCtl').classList.toggle('hidden',!env);$('qrReader').classList.toggle('hidden',env)}
 function cerrarQR(){clearInterval(qrT);qrPartes=[];$('qrx').style.display='none';if(qrLector){qrLector.stop().catch(()=>{}).finally(()=>{try{qrLector.clear()}catch(e){}qrLector=null})}}
+$('btnVerifIA').onclick=async()=>{const t=T();if(!t||!t.items.length){msg('Este entrepaño no tiene libros leídos.','dup');return}if(!pedirNombre())return;
+  msg('Armando las hojas de verificación…','');const r=await hojasVerificacion(t);
+  if(!r.hojas.length){msg('No hay fotos de etiquetas guardadas: las fotos se guardan solo cuando lees en vivo con la cámara (modo Signatura).','dup');return}
+  try{if(navigator.canShare&&navigator.canShare({files:r.hojas})){await navigator.share({files:r.hojas,title:'Hojas de verificación',text:`Verificación ${r.lote}: ${r.total} etiquetas`});msg(`Listo: ${r.hojas.length} hoja(s) con ${r.total} etiquetas. Ábrelas en “Inventario con IA” → Verificar hojas del escáner.`,'ok');return}}catch(e){if(e&&e.name==='AbortError')return}
+  for(const f of r.hojas){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove();await new Promise(z=>setTimeout(z,500))}
+  msg(`Guardadas ${r.hojas.length} hoja(s) con ${r.total} etiquetas${r.sin.length?` (${r.sin.length} libros sin foto: leídos por foto, bloque o a mano)`:''}. Súbelas en “Inventario con IA” → Verificar hojas del escáner.`,'ok')};
 $('btnQRsend').onclick=()=>{const t=T();if(!t||!t.items.length){msg('Este entrepaño no tiene libros leídos.','dup');return}if(!pedirNombre())return;
   const datos=JSON.stringify({q:quien(),t:nombreT(t),u:t.ubic,f:FECHA_TXT,c:t.items.map(x=>x.codigo)});
   const lote=Math.random().toString(36).slice(2,8),n=Math.ceil(datos.length/QR_TROZO);
